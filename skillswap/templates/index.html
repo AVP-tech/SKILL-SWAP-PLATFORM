@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Skill Swap Platform</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      color: #333;
+    }
+
+    header {
+      background-color: #4CAF50;
+      color: white;
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 2rem;
+    }
+
+    nav {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    nav a {
+      background-color: white;
+      color: #4CAF50;
+      text-decoration: none;
+      padding: 8px 16px;
+      border-radius: 5px;
+      font-weight: bold;
+      transition: background-color 0.3s, color 0.3s;
+      border: none;
+    }
+
+    nav a:hover {
+      background-color: #e6e6e6;
+      color: #388E3C;
+    }
+
+    main {
+      padding: 80px 40px;
+      max-width: 600px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    h2 {
+      font-size: 2.5rem;
+      margin-bottom: 20px;
+      color: #333;
+    }
+
+    p {
+      font-size: 1.3rem;
+      margin-bottom: 40px;
+      color: #555;
+    }
+
+    .button {
+      display: inline-block;
+      background-color: #4CAF50;
+      color: white;
+      padding: 14px 30px;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      transition: background-color 0.3s;
+    }
+
+    .button:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Skill Swap</h1>
+    <nav>
+      <a href="login">Login</a>
+      <a href="register">Register</a>
+      <a href="profile">My Profile</a>
+      <a href="browse">Browse Skills</a>
+      <a href="swap-requests">Swap Requests</a>
+    </nav>
+  </header>
+
+  <main>
+    <h2>Exchange Skills. Learn Together.</h2>
+    <p>List your skills, find someone to swap with, and grow together. No money involved — just pure learning and sharing!</p>
+    <a class="button" href="register">Get Started</a>
+  </main>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const button = document.querySelector('.button');
+      button.addEventListener('click', function () {
+        alert("Redirecting to the Register page...");
+      });
+    });
+  </script>
+</body>
+
+</html>

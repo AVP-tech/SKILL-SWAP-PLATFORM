@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Your Swap Requests</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 40px;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f5f7fa;
+      color: #333;
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 30px;
+      font-size: 2rem;
+      color: #2e7d32;
+    }
+
+    .request-card {
+      background-color: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      max-width: 600px;
+      margin: 20px auto;
+      padding: 20px 25px;
+      transition: transform 0.2s ease-in-out;
+    }
+
+    .request-card:hover {
+      transform: scale(1.01);
+    }
+
+    .request-card h3 {
+      margin-top: 0;
+      font-size: 1.2rem;
+    }
+
+    .request-card p {
+      margin: 8px 0;
+    }
+
+    .status {
+      font-weight: bold;
+      margin-top: 10px;
+      color: #555;
+    }
+
+    .buttons {
+      margin-top: 15px;
+    }
+
+    .buttons button {
+      margin-right: 10px;
+      padding: 10px 16px;
+      font-size: 0.95rem;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    .accept {
+      background-color: #4CAF50;
+      color: white;
+    }
+
+    .accept:hover {
+      background-color: #388e3c;
+    }
+
+    .reject {
+      background-color: #f44336;
+      color: white;
+    }
+
+    .reject:hover {
+      background-color: #c62828;
+    }
+
+    .cancel {
+      background-color: #9e9e9e;
+      color: white;
+    }
+
+    .cancel:hover {
+      background-color: #757575;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h2>Your Swap Requests</h2>
+
+  <!-- Example: Request you sent -->
+  <div class="request-card" data-id="1" data-type="sent">
+    <h3>Request sent to Anjali (📍Delhi)</h3>
+    <p><strong>You offered:</strong> Excel</p>
+    <p><strong>You want:</strong> Photoshop</p>
+    <p class="status">Status: Pending</p>
+    <div class="buttons">
+      <button class="cancel">Cancel Request</button>
+    </div>
+  </div>
+
+  <!-- Example: Request you received -->
+  <div class="request-card" data-id="2" data-type="received">
+    <h3>Ravi (📍Bangalore) wants to swap with you</h3>
+    <p><strong>They offer:</strong> Python</p>
+    <p><strong>They want:</strong> Guitar</p>
+    <p class="status">Status: Awaiting your response</p>
+    <div class="buttons">
+      <button class="accept">Accept</button>
+      <button class="reject">Reject</button>
+    </div>
+  </div>
+
+  <script>
+    // Cancel Sent Request
+    document.querySelectorAll(".cancel").forEach(button => {
+      button.addEventListener("click", () => {
+        const card = button.closest(".request-card");
+        const requestId = card.dataset.id;
+
+        fetch(`http://127.0.0.1:5000/respond_swap/${requestId}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ status: "cancelled" })
+        })
+          .then(res => res.json())
+          .then(data => {
+            alert(data.message);
+            const status = card.querySelector(".status");
+            status.textContent = "Status: Cancelled ❌";
+            status.style.color = "#9e9e9e";
+            button.disabled = true;
+          })
+          .catch(err => console.error(err));
+      });
+    });
+
+    // Accept Received Request
+    document.querySelectorAll(".accept").forEach(button => {
+      button.addEventListener("click", () => {
+        const card = button.closest(".request-card");
+        const requestId = card.dataset.id;
+
+        fetch(`http://127.0.0.1:5000/respond_swap/${requestId}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ status: "accepted" })
+        })
+          .then(res => res.json())
+          .then(data => {
+            alert(data.message);
+            const status = card.querySelector(".status");
+            status.textContent = "Status: Accepted ✅";
+            status.style.color = "#4CAF50";
+            button.disabled = true;
+            button.nextElementSibling.disabled = true;
+          })
+          .catch(err => console.error(err));
+      });
+    });
+
+    // Reject Received Request
+    document.querySelectorAll(".reject").forEach(button => {
+      button.addEventListener("click", () => {
+        const card = button.closest(".request-card");
+        const requestId = card.dataset.id;
+
+        fetch(`http://127.0.0.1:5000/respond_swap/${requestId}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ status: "rejected" })
+        })
+          .then(res => res.json())
+          .then(data => {
+            alert(data.message);
+            const status = card.querySelector(".status");
+            status.textContent = "Status: Rejected ❌";
+            status.style.color = "#f44336";
+            button.disabled = true;
+            button.previousElementSibling.disabled = true;
+          })
+          .catch(err => console.error(err));
+      });
+    });
+  </script>
+
+</body>
+
+</html>

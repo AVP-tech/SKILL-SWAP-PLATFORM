@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Browse Skills</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 40px;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f5f7fa;
+      color: #333;
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 30px;
+      font-size: 2rem;
+      color: #2e7d32;
+    }
+
+    input[type="text"] {
+      display: block;
+      margin: 0 auto 30px auto;
+      padding: 12px 20px;
+      width: 90%;
+      max-width: 500px;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      transition: border-color 0.3s;
+    }
+
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #4CAF50;
+    }
+
+    .user-card {
+      background-color: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      max-width: 500px;
+      margin: 20px auto;
+      padding: 20px 25px;
+      transition: transform 0.2s;
+    }
+
+    .user-card:hover {
+      transform: scale(1.02);
+    }
+
+    .user-card h3 {
+      margin-top: 0;
+      font-size: 1.3rem;
+    }
+
+    .user-card p {
+      margin: 8px 0;
+      font-size: 1rem;
+    }
+
+    button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      font-size: 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    button:hover {
+      background-color: #388e3c;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>Find People to Swap With</h2>
+  <input type="text" id="searchInput" placeholder="Search by skill... 🔍" />
+
+  <div id="cardsContainer"></div>
+
+  <script>
+    const searchInput = document.getElementById('searchInput');
+    const cardsContainer = document.getElementById('cardsContainer');
+    let skillsData = [];
+
+    // 1️⃣: Fetch skills from backend on page load
+    window.onload = () => {
+      fetch("/skills/offered")
+        .then(res => res.json())
+        .then(data => {
+          skillsData = data; // store all skills
+          displayCards(skillsData);
+        })
+        .catch(err => console.error(err));
+    };
+
+    // 2️⃣: Display cards
+    function displayCards(data) {
+      cardsContainer.innerHTML = "";
+      data.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'user-card';
+
+        card.innerHTML = `
+          <h3>User ID: ${item.user_id}</h3>
+          <p><strong>Offers:</strong> ${item.skill}</p>
+          <button onclick="requestSwap(${item.user_id})">Request Swap</button>
+        `;
+
+        cardsContainer.appendChild(card);
+      });
+    }
+
+    // 3️⃣: Search filter
+    searchInput.addEventListener('input', function () {
+      const query = this.value.toLowerCase();
+      const filtered = skillsData.filter(item =>
+        item.skill.toLowerCase().includes(query)
+      );
+      displayCards(filtered);
+    });
+
+    // 4️⃣: Request swap button
+    function requestSwap(targetId) {
+      // 🟢 In real flow: requester_id nahi bhejna padta, Flask se current_user.id aayega
+      fetch("/swap_request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          target_id: targetId
+        })
+      })
+        .then(res => res.json())
+        .then(data => {
+          alert(data.message);
+        })
+        .catch(err => console.error(err));
+    }
+  </script>
+</body>
+
+</html>
