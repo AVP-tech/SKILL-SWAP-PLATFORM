@@ -1,59 +1,87 @@
-Problem Statement:- Skill Swap Platform
+# Skill Swap Platform
 
-Team Members' Names :-
-(1)Pandey Aayush Vijay 
-Email:- aayushpandey5806@gmail.com
+Flask web app for exchanging skills with other users. Create a profile, list what you offer/want, browse public profiles, and manage swap requests.
 
-(2)Jain Nirav Nilesh 
-Email:- niravjain1382005@gmail.com 
+## Team
 
-(3)Meet K Nagar 
-Email:- meetnagar847@gmail.com
-📌Description about the project:-
-Skill Swap is a web-based community platform that allows users to exchange skills with each other without involving any money. Every user can list the skills they offer (e.g., Photoshop, Python, Guitar) and the skills they want to learn from someone else.
+1. Pandey Aayush Vijay (`aayushpandey5806@gmail.com`)
+2. Jain Nirav Nilesh (`niravjain1382005@gmail.com`)
+3. Meet K Nagar (`meetnagar847@gmail.com`)
 
-The platform’s goal is to:
-	•	Promote peer-to-peer learning.
-	•	Enable a fair trade of knowledge and skills within the community.
-	•	Provide an easy way to search, browse, and connect with other learners.
+## Features
 
-Key User Features:
-✅ Register & Login securely
-✅ Create and update profile details
-✅ Add skills (offered and wanted)
-✅ Browse and search other users’ skills
-✅ Send and manage skill swap requests
-✅ Secure authentication with hashed passwords
+- Register / login (hashed passwords)
+- Profile management (name, location, availability, public/private visibility)
+- Skills offered + skills wanted
+- Browse public profiles with search, filters, and pagination
+- Send swap requests
+- Accept / reject / cancel requests
+- CSRF protection for forms and POST API actions
+- `.env`-based config + production-safe cookie defaults
 
-⸻
+## Stack
 
-⚙️ Tech Stack:
-	•	Frontend: HTML, CSS, Vanilla JavaScript (Fetch API)
-	•	Backend: Python Flask, Flask-Login, Flask-SQLAlchemy
-	•	Database: SQLite
-	•	Version Control: Git + GitHub
+- Flask, Flask-SQLAlchemy, Flask-Login, Flask-Bcrypt, Flask-WTF
+- SQLite (default)
+- Jinja templates + HTML/CSS/JS
 
-⸻
+## Data Model
 
-✨ Key Highlights:
-	•	Clean and secure user authentication using bcrypt for password hashing.
-	•	Profile management with options for location, availability, and visibility (public/private).
-	•	Skill browse and real-time search functionality.
-	•	Skill swap request feature.
-	•	Fully functional REST API connected with AJAX-based frontend.
+- `User`: profile + auth fields
+- `Skill`: one record per user skill type (`offered` / `wanted`)
+- `SwapRequest`: requester, target, status, timestamps
 
-⸻
+## Quick Start
 
-🚀 How to Run:
+```bash
+python -m venv .venv
+```
 
-1️⃣ Clone the repo: git clone <repo-link>
-2️⃣ Install requirements: pip install -r requirements.txt (optional)
-3️⃣ Run the server: python app.py
-4️⃣ Open http://127.0.0.1:5000/ in your browser.
+Windows (PowerShell):
 
-⸻
+```powershell
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env
+python skillswap/app.py
+```
 
-🤝 Team:
-	•	Aayush Pandey
-	•	Nirav Jain
-	•	Meet Nagar
+App URL: `http://127.0.0.1:5000`
+
+## Config (`.env`)
+
+Key variables:
+
+- `APP_ENV` (`development` / `production`)
+- `FLASK_DEBUG`
+- `APP_HOST`, `APP_PORT`
+- `SECRET_KEY`
+- `DATABASE_URL`
+- `SESSION_COOKIE_SECURE`, `REMEMBER_COOKIE_SECURE`
+- `WTF_CSRF_ENABLED`, `WTF_CSRF_TIME_LIMIT`
+
+## Main Routes
+
+- `/` Home
+- `/login`, `/register`
+- `/profile` (login required)
+- `/browse` (login required)
+- `/swap-requests` (login required)
+
+## Main API Endpoints
+
+- `POST /api/login`
+- `GET /api/get_profile`
+- `POST /api/update_profile`
+- `GET /skills/offered` (supports `q`, `location`, `availability`, `page`, `per_page`)
+- `POST /swap_request`
+- `POST /respond_swap/<request_id>`
+- `GET /api/swap_requests`
+
+## Tests
+
+```bash
+pytest -q
+```
+
+Current tests cover core auth/profile/swap workflows.

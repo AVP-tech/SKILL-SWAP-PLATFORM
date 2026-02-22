@@ -1,155 +1,344 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Browse Skills</title>
-  <style>
-    * {
-      box-sizing: border-box;
+{% block content %}
+<section class="panel">
+  <div class="panel-body">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow" style="margin-bottom:10px;">Discover people</div>
+        <h2>Browse Public Skills</h2>
+        <p class="muted" style="margin-top:6px;">Filter public profiles and send a swap request in one click.</p>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <span class="pill" id="resultCountPill">0 total</span>
+        <button class="btn btn-outline btn-sm" id="refreshBrowseBtn" type="button">Refresh</button>
+      </div>
+    </div>
+
+    <form id="browseFiltersForm" class="stack" style="margin-top: 10px;">
+      <div class="field-row">
+        <div class="field" style="margin-bottom:0;">
+          <label for="searchInput">Search</label>
+          <input type="text" id="searchInput" placeholder="Skill or name" />
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label for="locationInput">Location</label>
+          <input type="text" id="locationInput" placeholder="City or area" />
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field" style="margin-bottom:0;">
+          <label for="availabilitySelect">Availability</label>
+          <select id="availabilitySelect">
+            <option value="">Any</option>
+            <option value="weekends">Weekends</option>
+            <option value="evenings">Evenings</option>
+            <option value="anytime">Anytime</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label for="perPageSelect">Results per page</label>
+          <select id="perPageSelect">
+            <option value="6">6</option>
+            <option value="12">12</option>
+            <option value="18">18</option>
+            <option value="24">24</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn btn-primary" type="submit">Apply Filters</button>
+        <button class="btn btn-outline" type="button" id="resetBrowseFiltersBtn">Reset</button>
+        <a class="btn btn-soft" href="{{ url_for('profile_page') }}">Update My Profile</a>
+      </div>
+    </form>
+
+    <div id="browseStatus" class="notice notice-info hidden" role="status" aria-live="polite" style="margin-top: 12px;"></div>
+  </div>
+</section>
+
+<section class="section">
+  <div id="cardsContainer" class="grid grid-2" aria-live="polite"></div>
+</section>
+
+<section class="section">
+  <div class="panel-solid">
+    <div class="panel-body" style="display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap;">
+      <div class="muted" id="pageMetaText">Page 1 of 1</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" type="button" id="prevPageBtn">Previous</button>
+        <button class="btn btn-outline btn-sm" type="button" id="nextPageBtn">Next</button>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const browseFiltersForm = document.getElementById("browseFiltersForm");
+  const searchInput = document.getElementById("searchInput");
+  const locationInput = document.getElementById("locationInput");
+  const availabilitySelect = document.getElementById("availabilitySelect");
+  const perPageSelect = document.getElementById("perPageSelect");
+  const resetBrowseFiltersBtn = document.getElementById("resetBrowseFiltersBtn");
+  const cardsContainer = document.getElementById("cardsContainer");
+  const browseStatus = document.getElementById("browseStatus");
+  const refreshBrowseBtn = document.getElementById("refreshBrowseBtn");
+  const resultCountPill = document.getElementById("resultCountPill");
+  const prevPageBtn = document.getElementById("prevPageBtn");
+  const nextPageBtn = document.getElementById("nextPageBtn");
+  const pageMetaText = document.getElementById("pageMetaText");
+
+  const state = {
+    q: "",
+    location: "",
+    availability: "",
+    page: 1,
+    per_page: 6,
+  };
+
+  let isLoadingSkills = false;
+  let lastPagination = { page: 1, pages: 0, total: 0, has_prev: false, has_next: false };
+
+  function showBrowseStatus(message, kind = "info") {
+    if (!message) {
+      browseStatus.textContent = "";
+      browseStatus.className = "notice notice-info hidden";
+      return;
+    }
+    browseStatus.textContent = message;
+    browseStatus.className = `notice notice-${kind}`;
+  }
+
+  function escapeHtml(value) {
+    const div = document.createElement("div");
+    div.textContent = value ?? "";
+    return div.innerHTML;
+  }
+
+  function setResultCount(total) {
+    resultCountPill.textContent = `${total} total`;
+  }
+
+  function updatePaginationControls(pagination) {
+    lastPagination = pagination || lastPagination;
+    const totalPages = Math.max(pagination?.pages || 0, 1);
+    const currentPage = pagination?.pages ? pagination.page : 1;
+
+    pageMetaText.textContent = `Page ${currentPage} of ${totalPages}`;
+    prevPageBtn.disabled = !(pagination && pagination.has_prev);
+    nextPageBtn.disabled = !(pagination && pagination.has_next);
+  }
+
+  function createEmptyCard(message) {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.style.gridColumn = "1 / -1";
+    card.innerHTML = `<p class="muted">${escapeHtml(message)}</p>`;
+    return card;
+  }
+
+  function renderCards(items) {
+    cardsContainer.innerHTML = "";
+
+    if (!items.length) {
+      cardsContainer.appendChild(createEmptyCard("No matching public profiles found."));
+      return;
     }
 
-    body {
-      margin: 0;
-      padding: 40px;
-      font-family: 'Segoe UI', sans-serif;
-      background-color: #f5f7fa;
-      color: #333;
-    }
+    items.forEach((item) => {
+      const card = document.createElement("article");
+      card.className = "card";
 
-    h2 {
-      text-align: center;
-      margin-bottom: 30px;
-      font-size: 2rem;
-      color: #2e7d32;
-    }
+      const title = document.createElement("h3");
+      title.textContent = item.name || `User ${item.user_id}`;
 
-    input[type="text"] {
-      display: block;
-      margin: 0 auto 30px auto;
-      padding: 12px 20px;
-      width: 90%;
-      max-width: 500px;
-      font-size: 1rem;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      transition: border-color 0.3s;
-    }
+      const meta = document.createElement("p");
+      meta.className = "muted";
+      const parts = [];
+      if (item.location) parts.push(`Location: ${item.location}`);
+      if (item.availability) parts.push(`Available: ${item.availability}`);
+      meta.textContent = parts.join(" • ") || "Profile details not shared";
 
-    input[type="text"]:focus {
-      outline: none;
-      border-color: #4CAF50;
-    }
+      const offerLine = document.createElement("p");
+      offerLine.className = "kv";
+      offerLine.innerHTML = `<span><strong>Offers:</strong> ${escapeHtml(item.skill || "-")}</span>`;
 
-    .user-card {
-      background-color: white;
-      border-radius: 12px;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-      max-width: 500px;
-      margin: 20px auto;
-      padding: 20px 25px;
-      transition: transform 0.2s;
-    }
+      const userIdLine = document.createElement("p");
+      userIdLine.className = "muted";
+      userIdLine.style.fontSize = "0.82rem";
+      userIdLine.textContent = `User ID: ${item.user_id}`;
 
-    .user-card:hover {
-      transform: scale(1.02);
-    }
+      const actions = document.createElement("div");
+      actions.style.display = "flex";
+      actions.style.gap = "8px";
+      actions.style.flexWrap = "wrap";
+      actions.style.marginTop = "10px";
 
-    .user-card h3 {
-      margin-top: 0;
-      font-size: 1.3rem;
-    }
+      const requestBtn = document.createElement("button");
+      requestBtn.className = "btn btn-primary btn-sm";
+      requestBtn.type = "button";
+      requestBtn.textContent = "Request Swap";
+      requestBtn.addEventListener("click", () => requestSwap(item.user_id, requestBtn));
 
-    .user-card p {
-      margin: 8px 0;
-      font-size: 1rem;
-    }
+      const viewReqBtn = document.createElement("a");
+      viewReqBtn.className = "btn btn-outline btn-sm";
+      viewReqBtn.href = "{{ url_for('swap_requests_page') }}";
+      viewReqBtn.textContent = "Open Requests";
 
-    button {
-      background-color: #4CAF50;
-      color: white;
-      border: none;
-      padding: 10px 18px;
-      font-size: 1rem;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: background-color 0.3s;
-    }
+      actions.appendChild(requestBtn);
+      actions.appendChild(viewReqBtn);
 
-    button:hover {
-      background-color: #388e3c;
-    }
-  </style>
-</head>
-
-<body>
-  <h2>Find People to Swap With</h2>
-  <input type="text" id="searchInput" placeholder="Search by skill... 🔍" />
-
-  <div id="cardsContainer"></div>
-
-  <script>
-    const searchInput = document.getElementById('searchInput');
-    const cardsContainer = document.getElementById('cardsContainer');
-    let skillsData = [];
-
-    // 1️⃣: Fetch skills from backend on page load
-    window.onload = () => {
-      fetch("/skills/offered")
-        .then(res => res.json())
-        .then(data => {
-          skillsData = data; // store all skills
-          displayCards(skillsData);
-        })
-        .catch(err => console.error(err));
-    };
-
-    // 2️⃣: Display cards
-    function displayCards(data) {
-      cardsContainer.innerHTML = "";
-      data.forEach(item => {
-        const card = document.createElement('div');
-        card.className = 'user-card';
-
-        card.innerHTML = `
-          <h3>User ID: ${item.user_id}</h3>
-          <p><strong>Offers:</strong> ${item.skill}</p>
-          <button onclick="requestSwap(${item.user_id})">Request Swap</button>
-        `;
-
-        cardsContainer.appendChild(card);
-      });
-    }
-
-    // 3️⃣: Search filter
-    searchInput.addEventListener('input', function () {
-      const query = this.value.toLowerCase();
-      const filtered = skillsData.filter(item =>
-        item.skill.toLowerCase().includes(query)
-      );
-      displayCards(filtered);
+      card.appendChild(title);
+      card.appendChild(meta);
+      card.appendChild(offerLine);
+      card.appendChild(userIdLine);
+      card.appendChild(actions);
+      cardsContainer.appendChild(card);
     });
+  }
 
-    // 4️⃣: Request swap button
-    function requestSwap(targetId) {
-      // 🟢 In real flow: requester_id nahi bhejna padta, Flask se current_user.id aayega
-      fetch("/swap_request", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          target_id: targetId
-        })
-      })
-        .then(res => res.json())
-        .then(data => {
-          alert(data.message);
-        })
-        .catch(err => console.error(err));
+  function buildQueryString() {
+    const params = new URLSearchParams();
+    if (state.q) params.set("q", state.q);
+    if (state.location) params.set("location", state.location);
+    if (state.availability) params.set("availability", state.availability);
+    params.set("page", String(state.page));
+    params.set("per_page", String(state.per_page));
+    return params.toString();
+  }
+
+  function syncInputsFromState() {
+    searchInput.value = state.q;
+    locationInput.value = state.location;
+    availabilitySelect.value = state.availability;
+    perPageSelect.value = String(state.per_page);
+  }
+
+  function syncStateFromInputs({ resetPage = false } = {}) {
+    state.q = searchInput.value.trim();
+    state.location = locationInput.value.trim();
+    state.availability = availabilitySelect.value;
+    state.per_page = Number.parseInt(perPageSelect.value, 10) || 6;
+    if (resetPage) state.page = 1;
+  }
+
+  async function loadSkills() {
+    if (isLoadingSkills) return;
+    isLoadingSkills = true;
+
+    refreshBrowseBtn.disabled = true;
+    refreshBrowseBtn.textContent = "Refreshing...";
+    prevPageBtn.disabled = true;
+    nextPageBtn.disabled = true;
+    showBrowseStatus("Loading public profiles...", "info");
+
+    try {
+      const res = await fetch(`/skills/offered?${buildQueryString()}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to load skills.");
+      }
+
+      const items = Array.isArray(data.items) ? data.items : [];
+      const pagination = data.pagination || { page: 1, pages: 0, total: 0, has_prev: false, has_next: false };
+
+      state.page = pagination.page || 1;
+      setResultCount(pagination.total || 0);
+      updatePaginationControls(pagination);
+      renderCards(items);
+
+      if (!items.length && !(pagination.total > 0)) {
+        showBrowseStatus("No public profiles found yet. Ask users to set visibility to public.", "info");
+      } else {
+        showBrowseStatus(`Loaded ${items.length} profile(s) on this page.`, "success");
+      }
+    } catch (err) {
+      console.error(err);
+      cardsContainer.innerHTML = "";
+      cardsContainer.appendChild(createEmptyCard("Could not load profiles right now."));
+      setResultCount(0);
+      updatePaginationControls({ page: 1, pages: 0, has_prev: false, has_next: false });
+      showBrowseStatus(err.message || "Could not load profiles.", "error");
+    } finally {
+      isLoadingSkills = false;
+      refreshBrowseBtn.disabled = false;
+      refreshBrowseBtn.textContent = "Refresh";
     }
-  </script>
-</body>
+  }
 
-</html>
+  async function requestSwap(targetId, button) {
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = "Sending...";
+
+    try {
+      const res = await fetch("/swap_request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_id: targetId }),
+      });
+      const data = await res.json().catch(() => ({ message: "Unexpected error" }));
+      showBrowseStatus(data.message || "Request processed.", res.ok ? "success" : "error");
+      if (res.ok) {
+        button.textContent = "Request Sent";
+        button.className = "btn btn-soft btn-sm";
+        return;
+      }
+      button.disabled = false;
+      button.textContent = originalText;
+    } catch (err) {
+      console.error(err);
+      showBrowseStatus("Something went wrong while sending the request.", "error");
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+
+  browseFiltersForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    syncStateFromInputs({ resetPage: true });
+    loadSkills();
+  });
+
+  resetBrowseFiltersBtn.addEventListener("click", () => {
+    state.q = "";
+    state.location = "";
+    state.availability = "";
+    state.page = 1;
+    state.per_page = 6;
+    syncInputsFromState();
+    loadSkills();
+  });
+
+  refreshBrowseBtn.addEventListener("click", () => {
+    syncStateFromInputs();
+    loadSkills();
+  });
+
+  prevPageBtn.addEventListener("click", () => {
+    if (!lastPagination.has_prev) return;
+    state.page = Math.max(1, state.page - 1);
+    loadSkills();
+  });
+
+  nextPageBtn.addEventListener("click", () => {
+    if (!lastPagination.has_next) return;
+    state.page += 1;
+    loadSkills();
+  });
+
+  perPageSelect.addEventListener("change", () => {
+    syncStateFromInputs({ resetPage: true });
+    loadSkills();
+  });
+
+  window.addEventListener("load", () => {
+    syncInputsFromState();
+    loadSkills();
+  });
+</script>
+{% endblock %}

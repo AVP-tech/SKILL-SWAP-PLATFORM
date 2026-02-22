@@ -1,118 +1,63 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Skill Swap Platform</title>
+{% block content %}
+<section class="hero">
+  <div class="panel hero-copy">
+    <div class="eyebrow">Peer-to-peer learning</div>
+    <h1>Exchange real skills with real people.</h1>
+    <p class="lead">
+      Offer what you know, discover what others can teach, and build practical connections through direct swaps.
+      No marketplace friction, just learning loops.
+    </p>
 
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #f4f4f4;
-      color: #333;
-    }
+    <div class="hero-actions">
+      {% if current_user.is_authenticated %}
+      <a class="btn btn-primary" href="{{ url_for('browse_page') }}">Find a Match</a>
+      <a class="btn btn-outline" href="{{ url_for('profile_page') }}">Update Profile</a>
+      {% else %}
+      <a class="btn btn-primary" href="{{ url_for('register_page') }}">Create Account</a>
+      <a class="btn btn-outline" href="{{ url_for('login_page') }}">Sign In</a>
+      {% endif %}
+    </div>
 
-    header {
-      background-color: #4CAF50;
-      color: white;
-      padding: 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
+    <p class="footer-note">Tip: keep your offered and wanted skills specific to get better matches.</p>
+  </div>
 
-    header h1 {
-      margin: 0;
-      font-size: 2rem;
-    }
+  <div class="panel metrics">
+    <div class="metric-card">
+      <span class="value">Skill-first</span>
+      <span class="label">Search public profiles by offered skills and send swap requests instantly.</span>
+    </div>
+    <div class="metric-card">
+      <span class="value">Profile controls</span>
+      <span class="label">Set location, availability, and public/private visibility from one place.</span>
+    </div>
+    <div class="metric-card">
+      <span class="value">Request workflow</span>
+      <span class="label">Track sent and received requests with clear pending/accepted/rejected status.</span>
+    </div>
+  </div>
+</section>
 
-    nav {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
+<section class="section">
+  <div class="section-head">
+    <h2>How It Works</h2>
+    <span class="pill">3 quick steps</span>
+  </div>
 
-    nav a {
-      background-color: white;
-      color: #4CAF50;
-      text-decoration: none;
-      padding: 8px 16px;
-      border-radius: 5px;
-      font-weight: bold;
-      transition: background-color 0.3s, color 0.3s;
-      border: none;
-    }
-
-    nav a:hover {
-      background-color: #e6e6e6;
-      color: #388E3C;
-    }
-
-    main {
-      padding: 80px 40px;
-      max-width: 600px;
-      margin: 0 auto;
-      text-align: center;
-    }
-
-    h2 {
-      font-size: 2.5rem;
-      margin-bottom: 20px;
-      color: #333;
-    }
-
-    p {
-      font-size: 1.3rem;
-      margin-bottom: 40px;
-      color: #555;
-    }
-
-    .button {
-      display: inline-block;
-      background-color: #4CAF50;
-      color: white;
-      padding: 14px 30px;
-      text-decoration: none;
-      border-radius: 6px;
-      font-size: 1.1rem;
-      font-weight: bold;
-      transition: background-color 0.3s;
-    }
-
-    .button:hover {
-      background-color: #45a049;
-    }
-  </style>
-</head>
-
-<body>
-  <header>
-    <h1>Skill Swap</h1>
-    <nav>
-      <a href="login">Login</a>
-      <a href="register">Register</a>
-      <a href="profile">My Profile</a>
-      <a href="browse">Browse Skills</a>
-      <a href="swap-requests">Swap Requests</a>
-    </nav>
-  </header>
-
-  <main>
-    <h2>Exchange Skills. Learn Together.</h2>
-    <p>List your skills, find someone to swap with, and grow together. No money involved — just pure learning and sharing!</p>
-    <a class="button" href="register">Get Started</a>
-  </main>
-
-  <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      const button = document.querySelector('.button');
-      button.addEventListener('click', function () {
-        alert("Redirecting to the Register page...");
-      });
-    });
-  </script>
-</body>
-
-</html>
+  <div class="grid grid-3">
+    <article class="card">
+      <h3>1. Build Your Profile</h3>
+      <p class="muted">Add your name, location, availability, and the skill you can offer plus what you want to learn.</p>
+    </article>
+    <article class="card">
+      <h3>2. Browse Public Skills</h3>
+      <p class="muted">Search public users by skill and find people whose expertise matches your learning goals.</p>
+    </article>
+    <article class="card">
+      <h3>3. Swap and Respond</h3>
+      <p class="muted">Send requests and manage responses from one requests page with status tracking.</p>
+    </article>
+  </div>
+</section>
+{% endblock %}

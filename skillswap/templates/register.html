@@ -1,93 +1,120 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Register - Skill Swap</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #f3f3f3;
-      padding: 40px;
-    }
+{% block content %}
+<section class="auth-wrap">
+  <div class="panel auth-card">
+    <div class="panel-body">
+      <div class="eyebrow">Create your profile</div>
+      <h2 style="margin-bottom: 8px;">Join Skill Swap</h2>
+      <p class="muted" style="margin-bottom: 16px;">Create an account to start exchanging skills with other learners.</p>
 
-    .register-box {
-      background: white;
-      padding: 30px;
-      border-radius: 10px;
-      max-width: 400px;
-      margin: auto;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    }
+      {% if error %}
+      <div class="notice notice-error" role="alert" style="margin-bottom: 12px;">{{ error }}</div>
+      {% endif %}
 
-    h2 {
-      text-align: center;
-      margin-bottom: 20px;
-    }
+      <form method="POST" action="{{ url_for('register_page') }}" id="registerForm" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
 
-    label {
-      display: block;
-      margin-top: 15px;
-      font-weight: bold;
-    }
+        <div class="field">
+          <label for="name">Full Name</label>
+          <input
+            type="text"
+            id="name"
+            name="name"
+            required
+            maxlength="80"
+            value="{{ request.form.get('name', '') }}"
+            autocomplete="name"
+          />
+        </div>
 
-    input[type="text"],
-    input[type="email"],
-    input[type="password"] {
-      width: 100%;
-      padding: 10px;
-      margin-top: 5px;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-    }
+        <div class="field">
+          <label for="email">Email</label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            required
+            maxlength="120"
+            value="{{ request.form.get('email', '') }}"
+            autocomplete="email"
+          />
+        </div>
 
-    button {
-      margin-top: 20px;
-      width: 100%;
-      background-color: #007bff;
-      color: white;
-      padding: 10px;
-      border: none;
-      font-size: 16px;
-      border-radius: 5px;
-      cursor: pointer;
-    }
+        <div class="field-row">
+          <div class="field">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required minlength="6" autocomplete="new-password" />
+            <div class="help-text">Minimum 6 characters</div>
+          </div>
 
-    button:hover {
-      background-color: #0056b3;
-    }
+          <div class="field">
+            <label for="confirm">Confirm Password</label>
+            <input type="password" id="confirm" name="confirm" required minlength="6" autocomplete="new-password" />
+          </div>
+        </div>
 
-    .login-link {
-      text-align: center;
-      margin-top: 15px;
-    }
-  </style>
-</head>
+        <div id="registerHint" class="notice notice-info hidden" role="status" aria-live="polite" style="margin-bottom: 12px;"></div>
 
-<body>
-  <div class="register-box">
-    <h2>Create an Account</h2>
-    <!-- ✅ Ye action direct /register route pe jaayega -->
-    <form method="POST" action="/register">
-      <label for="name">Full Name</label>
-      <input type="text" id="name" name="name" required />
+        <button class="btn btn-primary" type="submit" style="width:100%;">Register</button>
+      </form>
 
-      <label for="email">Email</label>
-      <input type="email" id="email" name="email" required />
-
-      <label for="password">Password</label>
-      <input type="password" id="password" name="password" required />
-
-      <label for="confirm">Confirm Password</label>
-      <input type="password" id="confirm" name="confirm" required />
-
-      <button type="submit">Register</button>
-    </form>
-    <div class="login-link">
-      Already have an account? <a href="/login">Login here</a>
+      <p class="footer-note">
+        Already have an account?
+        <a href="{{ url_for('login_page') }}" style="color:#0f8a5f;font-weight:700;">Login here</a>
+      </p>
     </div>
   </div>
-</body>
+</section>
+{% endblock %}
 
-</html>
+{% block scripts %}
+<script>
+  const registerForm = document.getElementById("registerForm");
+  const registerHint = document.getElementById("registerHint");
+  const pwdInput = document.getElementById("password");
+  const confirmInput = document.getElementById("confirm");
+
+  function showRegisterHint(message, kind = "info") {
+    if (!message) {
+      registerHint.textContent = "";
+      registerHint.className = "notice notice-info hidden";
+      return;
+    }
+    registerHint.textContent = message;
+    registerHint.className = `notice notice-${kind}`;
+  }
+
+  function validatePasswords() {
+    const pwd = pwdInput.value;
+    const confirm = confirmInput.value;
+    if (!pwd && !confirm) {
+      showRegisterHint("");
+      return true;
+    }
+    if (pwd.length > 0 && pwd.length < 6) {
+      showRegisterHint("Password should be at least 6 characters.", "error");
+      return false;
+    }
+    if (confirm && pwd !== confirm) {
+      showRegisterHint("Passwords do not match.", "error");
+      return false;
+    }
+    if (pwd && confirm && pwd === confirm) {
+      showRegisterHint("Passwords match.", "success");
+    } else {
+      showRegisterHint("");
+    }
+    return true;
+  }
+
+  pwdInput.addEventListener("input", validatePasswords);
+  confirmInput.addEventListener("input", validatePasswords);
+
+  registerForm.addEventListener("submit", (event) => {
+    if (!validatePasswords()) {
+      event.preventDefault();
+    }
+  });
+</script>
+{% endblock %}

@@ -1,116 +1,92 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+{% block content %}
+<section class="auth-wrap">
+  <div class="panel auth-card">
+    <div class="panel-body">
+      <div class="eyebrow">Welcome back</div>
+      <h2 style="margin-bottom: 8px;">Login to Skill Swap</h2>
+      <p class="muted" style="margin-bottom: 16px;">Access your profile, browse skills, and manage swap requests.</p>
 
-  <title>Login - Skill Swap</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #f3f3f3;
-      padding: 40px;
-    }
+      <div id="loginStatus" class="notice notice-info hidden" role="status" aria-live="polite"></div>
 
-    .login-box {
-      background: white;
-      padding: 30px;
-      border-radius: 10px;
-      max-width: 400px;
-      margin: auto;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    }
+      <form id="loginForm" class="stack" novalidate>
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" autocomplete="email" required />
+        </div>
 
-    h2 {
-      text-align: center;
-      margin-bottom: 20px;
-    }
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" autocomplete="current-password" required />
+        </div>
 
-    label {
-      display: block;
-      margin-top: 15px;
-      font-weight: bold;
-    }
+        <button class="btn btn-primary" type="submit" id="loginBtn">Login</button>
+      </form>
 
-    input[type="email"],
-    input[type="password"] {
-      width: 100%;
-      padding: 10px;
-      margin-top: 5px;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-    }
-
-    button {
-      margin-top: 20px;
-      width: 100%;
-      background-color: #007bff;
-      color: white;
-      padding: 10px;
-      border: none;
-      font-size: 16px;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-
-    button:hover {
-      background-color: #0056b3;
-    }
-
-    .register-link {
-      text-align: center;
-      margin-top: 15px;
-    }
-  </style>
-</head>
-
-<body>
-  <div class="login-box">
-    <h2>Login to Skill Swap</h2>
-    <div>
-      <label for="email">Email</label>
-      <input type="email" id="email" name="email" required />
-
-      <label for="password">Password</label>
-      <input type="password" id="password" name="password" required />
-
-      <button type="button" id="loginBtn">Login</button>
-    </div>
-    <div class="register-link">
-      Don’t have an account? <a href="/register">Register here</a>
+      <p class="footer-note">
+        Don&apos;t have an account?
+        <a href="{{ url_for('register_page') }}" style="color:#0f8a5f;font-weight:700;">Register here</a>
+      </p>
     </div>
   </div>
+</section>
+{% endblock %}
 
-  <script>
-    const loginBtn = document.getElementById("loginBtn");
-    loginBtn.addEventListener("click", function () {
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
+{% block scripts %}
+<script>
+  const loginForm = document.getElementById("loginForm");
+  const loginBtn = document.getElementById("loginBtn");
+  const loginStatus = document.getElementById("loginStatus");
 
-      fetch("http://127.0.0.1:5000/api/login", {
+  function showLoginStatus(message, kind = "info") {
+    loginStatus.textContent = message;
+    loginStatus.className = `notice notice-${kind}`;
+    if (!message) {
+      loginStatus.classList.add("hidden");
+      return;
+    }
+  }
+
+  loginForm.addEventListener("submit", async function (event) {
+    event.preventDefault();
+
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+
+    if (!email || !password) {
+      showLoginStatus("Email and password are required.", "error");
+      return;
+    }
+
+    loginBtn.disabled = true;
+    loginBtn.textContent = "Logging in...";
+    showLoginStatus("Checking your credentials...", "info");
+
+    try {
+      const res = await fetch("/api/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: email,
-          password: password,
-        }),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          alert(data.message);
-          if (data.message === "Login successful!") {
-            window.location.href = "/profile";
-          }
-        })
-        .catch((err) => {
-          console.error(err);
-          alert("Something went wrong!");
-        });
-    });
-  </script>
-</body>
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-</html>
+      const data = await res.json().catch(() => ({ message: "Unexpected response from server." }));
+      if (!res.ok) {
+        showLoginStatus(data.message || "Login failed.", "error");
+        return;
+      }
+
+      showLoginStatus(data.message || "Login successful!", "success");
+      window.setTimeout(() => {
+        window.location.href = "/profile";
+      }, 400);
+    } catch (err) {
+      console.error(err);
+      showLoginStatus("Could not reach the server. Please try again.", "error");
+    } finally {
+      loginBtn.disabled = false;
+      loginBtn.textContent = "Login";
+    }
+  });
+</script>
+{% endblock %}

@@ -1,196 +1,219 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Your Profile</title>
+{% block content %}
+<div class="grid grid-2">
+  <section class="panel">
+    <div class="panel-body">
+      <div class="eyebrow">Your profile</div>
+      <h2 style="margin-bottom: 8px;">Set your skill swap preferences</h2>
+      <p class="muted">
+        Keep this page updated so other users can discover you. Public profiles appear in browse results.
+      </p>
 
-  <style>
-    * {
-      box-sizing: border-box;
+      <div class="section">
+        <div class="stack">
+          <div class="card">
+            <h3>Matching tips</h3>
+            <p class="muted">Use specific skills like “Python basics” or “Excel dashboards” instead of broad terms.</p>
+          </div>
+          <div class="card">
+            <h3>Availability matters</h3>
+            <p class="muted">Users are more likely to respond when your availability and location are filled in clearly.</p>
+          </div>
+          <div class="card">
+            <h3>Next steps</h3>
+            <div class="stack">
+              <a class="btn btn-soft" href="{{ url_for('browse_page') }}">Browse Public Skills</a>
+              <a class="btn btn-outline" href="{{ url_for('swap_requests_page') }}">View Swap Requests</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-body">
+      <div class="section-head" style="margin-bottom: 12px;">
+        <h2>Edit Profile</h2>
+        <span class="pill" id="profileLoadBadge">Loading...</span>
+      </div>
+
+      <div id="profileStatus" class="notice notice-info hidden" role="status" aria-live="polite" style="margin-bottom: 12px;"></div>
+
+      <form id="profileForm">
+        <div class="field">
+          <label for="name">Name</label>
+          <input type="text" id="name" name="name" required maxlength="80" />
+        </div>
+
+        <div class="field">
+          <label for="location">Location</label>
+          <input type="text" id="location" name="location" maxlength="100" placeholder="e.g., Delhi, Bangalore" />
+        </div>
+
+        <div class="field">
+          <label for="skills_offered">Skills You Offer</label>
+          <input type="text" id="skills_offered" name="skills_offered" required maxlength="100" placeholder="e.g., Photoshop, Python basics" />
+        </div>
+
+        <div class="field">
+          <label for="skills_wanted">Skills You Want to Learn</label>
+          <input type="text" id="skills_wanted" name="skills_wanted" required maxlength="100" placeholder="e.g., Excel dashboards, Public speaking" />
+        </div>
+
+        <div class="field">
+          <label for="availability">Availability</label>
+          <select id="availability" name="availability">
+            <option value="weekends">Weekends</option>
+            <option value="evenings">Evenings</option>
+            <option value="anytime">Anytime</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Profile Visibility</label>
+          <div class="radio-row" role="radiogroup" aria-label="Profile visibility">
+            <label class="choice">
+              <input type="radio" name="visibility" value="public" checked />
+              Public
+            </label>
+            <label class="choice">
+              <input type="radio" name="visibility" value="private" />
+              Private
+            </label>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:6px;">
+          <button type="submit" class="btn btn-primary" id="saveProfileBtn">Save Profile</button>
+          <button type="button" class="btn btn-outline" id="reloadProfileBtn">Reload</button>
+        </div>
+      </form>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const profileForm = document.getElementById("profileForm");
+  const saveProfileBtn = document.getElementById("saveProfileBtn");
+  const reloadProfileBtn = document.getElementById("reloadProfileBtn");
+  const profileStatus = document.getElementById("profileStatus");
+  const profileLoadBadge = document.getElementById("profileLoadBadge");
+
+  function showProfileStatus(message, kind = "info") {
+    if (!message) {
+      profileStatus.textContent = "";
+      profileStatus.className = "notice notice-info hidden";
+      return;
     }
+    profileStatus.textContent = message;
+    profileStatus.className = `notice notice-${kind}`;
+  }
 
-    body {
-      margin: 0;
-      padding: 40px;
-      font-family: 'Segoe UI', sans-serif;
-      background-color: #f0f2f5;
-      color: #333;
+  function setFormDisabled(disabled) {
+    profileForm.querySelectorAll("input, select, button").forEach((el) => {
+      el.disabled = disabled;
+    });
+  }
+
+  function setLoadBadge(text) {
+    profileLoadBadge.textContent = text;
+  }
+
+  function fillProfile(data) {
+    document.getElementById("name").value = data.name || "";
+    document.getElementById("location").value = data.location || "";
+    document.getElementById("skills_offered").value = data.skills_offered || "";
+    document.getElementById("skills_wanted").value = data.skills_wanted || "";
+    document.getElementById("availability").value = data.availability || "anytime";
+
+    const visibility = data.visibility === "private" ? "private" : "public";
+    const radio = profileForm.querySelector(`input[name="visibility"][value="${visibility}"]`);
+    if (radio) radio.checked = true;
+  }
+
+  async function loadProfile(showLoadingNotice = true) {
+    setFormDisabled(true);
+    setLoadBadge("Loading...");
+    if (showLoadingNotice) showProfileStatus("Loading your profile...", "info");
+
+    try {
+      const res = await fetch("/api/get_profile");
+      const data = await res.json().catch(() => ({ message: "Could not parse profile response." }));
+      if (!res.ok) {
+        throw new Error(data.message || "Could not load profile.");
+      }
+      fillProfile(data);
+      setLoadBadge("Ready");
+      showProfileStatus("Profile loaded.", "success");
+    } catch (err) {
+      console.error(err);
+      setLoadBadge("Error");
+      showProfileStatus(err.message || "Could not load profile details.", "error");
+    } finally {
+      setFormDisabled(false);
     }
+  }
 
-    h1 {
-      text-align: center;
-      margin-bottom: 30px;
-      color: #2e7d32;
-      font-size: 2rem;
-    }
+  profileForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
 
-    form {
-      max-width: 600px;
-      margin: 0 auto;
-      background-color: #ffffff;
-      padding: 30px;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    }
-
-    label {
-      display: block;
-      margin-bottom: 18px;
-      font-weight: 500;
-      color: #333;
-    }
-
-    input[type="text"],
-    select {
-      width: 100%;
-      padding: 10px 14px;
-      margin-top: 6px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      font-size: 1rem;
-      transition: border-color 0.3s;
-    }
-
-    input[type="text"]:focus,
-    select:focus {
-      border-color: #4CAF50;
-      outline: none;
-    }
-
-    input[type="radio"] {
-      margin-left: 10px;
-      margin-right: 5px;
-    }
-
-    .radio-group {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      margin-top: 8px;
-    }
-
-    button {
-      width: 100%;
-      background-color: #4CAF50;
-      color: white;
-      border: none;
-      padding: 12px;
-      font-size: 1rem;
-      font-weight: bold;
-      border-radius: 8px;
-      cursor: pointer;
-      margin-top: 20px;
-      transition: background-color 0.3s ease;
-    }
-
-    button:hover {
-      background-color: #388e3c;
-    }
-  </style>
-</head>
-
-<body>
-
-  <center>
-    <h1>Your Profile</h1>
-  </center>
-  <form>
-    <label>Name:
-      <input type="text" name="name" required />
-    </label>
-
-    <label>Location:
-      <input type="text" name="location" />
-    </label>
-
-    <label>Skills You Offer:
-      <input type="text" name="skills_offered" placeholder="e.g., Photoshop, Python" />
-    </label>
-
-    <label>Skills You Want to Learn:
-      <input type="text" name="skills_wanted" placeholder="e.g., Excel, Public Speaking" />
-    </label>
-
-    <label>Availability:
-      <select>
-        <option value="weekends">Weekends</option>
-        <option value="evenings">Evenings</option>
-        <option value="anytime">Anytime</option>
-      </select>
-    </label>
-
-    <label>Make Profile:
-      <input type="radio" name="visibility" value="public" /> Public
-      <input type="radio" name="visibility" value="private" /> Private
-    </label>
-
-    <button type="submit">Save Profile</button>
-  </form>
-  <script>
-  // ✅ Auto-load profile details jab page khulega:
-  window.onload = function () {
-    fetch("http://127.0.0.1:5000/api/get_profile")
-      .then(res => res.json())
-      .then(data => {
-        document.querySelector('input[name="name"]').value = data.name || "";
-        document.querySelector('input[name="location"]').value = data.location || "";
-        document.querySelector('input[name="skills_offered"]').value = data.skills_offered || "";
-        document.querySelector('input[name="skills_wanted"]').value = data.skills_wanted || "";
-        document.querySelector('select').value = data.availability || "anytime";
-
-        if (data.visibility === "public") {
-          document.querySelector('input[name="visibility"][value="public"]').checked = true;
-        } else {
-          document.querySelector('input[name="visibility"][value="private"]').checked = true;
-        }
-      })
-      .catch(err => {
-        console.error(err);
-        alert("Could not load profile details!");
-      });
-  };
-
-  // ✅ Save profile handler:
-  document.querySelector("form").addEventListener("submit", function (e) {
-    e.preventDefault();
-
-    const name = document.querySelector('input[name="name"]').value.trim();
-    const location = document.querySelector('input[name="location"]').value.trim();
-    const skillsOffered = document.querySelector('input[name="skills_offered"]').value.trim();
-    const skillsWanted = document.querySelector('input[name="skills_wanted"]').value.trim();
-    const availability = document.querySelector('select').value;
-    const visibility = document.querySelector('input[name="visibility"]:checked')?.value;
+    const name = document.getElementById("name").value.trim();
+    const location = document.getElementById("location").value.trim();
+    const skillsOffered = document.getElementById("skills_offered").value.trim();
+    const skillsWanted = document.getElementById("skills_wanted").value.trim();
+    const availability = document.getElementById("availability").value;
+    const visibility = profileForm.querySelector('input[name="visibility"]:checked')?.value;
 
     if (!name || !skillsOffered || !skillsWanted || !visibility) {
-      alert("Please fill all required fields.");
+      showProfileStatus("Please fill all required fields.", "error");
       return;
     }
 
-    fetch("http://127.0.0.1:5000/api/update_profile", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name: name,
-        location: location,
-        skills_offered: skillsOffered,
-        skills_wanted: skillsWanted,
-        availability: availability,
-        visibility: visibility
-      }),
-    })
-      .then(res => res.json())
-      .then(data => {
-        alert(data.message);
-      })
-      .catch(err => {
-        console.error(err);
-        alert("Something went wrong!");
+    saveProfileBtn.disabled = true;
+    saveProfileBtn.textContent = "Saving...";
+    showProfileStatus("Saving profile changes...", "info");
+
+    try {
+      const res = await fetch("/api/update_profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          location,
+          skills_offered: skillsOffered,
+          skills_wanted: skillsWanted,
+          availability,
+          visibility
+        }),
       });
+
+      const data = await res.json().catch(() => ({ message: "Unexpected response from server." }));
+      if (!res.ok) {
+        showProfileStatus(data.message || "Could not save profile.", "error");
+        return;
+      }
+
+      showProfileStatus(data.message || "Profile updated successfully!", "success");
+      setLoadBadge("Saved");
+    } catch (err) {
+      console.error(err);
+      showProfileStatus("Something went wrong while saving.", "error");
+    } finally {
+      saveProfileBtn.disabled = false;
+      saveProfileBtn.textContent = "Save Profile";
+    }
+  });
+
+  reloadProfileBtn.addEventListener("click", () => {
+    loadProfile(true);
+  });
+
+  window.addEventListener("load", () => {
+    loadProfile(false);
   });
 </script>
-</body>
-</html>
+{% endblock %}
