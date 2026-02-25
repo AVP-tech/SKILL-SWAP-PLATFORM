@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-body">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow" style="margin-bottom:10px;">Chat</div>
+        <h2>Chat with {{ friend.name if friend else "Friend" }}</h2>
+        <p class="muted" style="margin-top:6px;">
+          {{ (friend.location ~ " • " ~ friend.availability) if friend and (friend.location or friend.availability) else "Start the conversation about your skill swap." }}
+        </p>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a class="btn btn-outline btn-sm" href="{{ url_for('friends_page') }}">Back to Friends</a>
+      </div>
+    </div>
+
+    <div id="chatStatus" class="notice notice-info hidden" role="status" aria-live="polite"></div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="panel-solid">
+    <div class="panel-body" style="padding:14px;">
+      <div id="messagesList" style="display:grid; gap:10px; max-height:420px; overflow:auto; padding-right:4px;"></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="panel-solid">
+    <div class="panel-body">
+      <form id="chatForm">
+        <div class="field" style="margin-bottom:8px;">
+          <label for="chatMessageInput">Message</label>
+          <input type="text" id="chatMessageInput" maxlength="1000" placeholder="Type your message..." />
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-primary" type="submit" id="sendMessageBtn">Send Message</button>
+          <button class="btn btn-outline" type="button" id="refreshChatBtn">Refresh</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const connectionId = {{ connection.id }};
+  const currentUserId = {{ current_user.id }};
+  const chatStatus = document.getElementById("chatStatus");
+  const messagesList = document.getElementById("messagesList");
+  const chatForm = document.getElementById("chatForm");
+  const chatMessageInput = document.getElementById("chatMessageInput");
+  const sendMessageBtn = document.getElementById("sendMessageBtn");
+  const refreshChatBtn = document.getElementById("refreshChatBtn");
+  let lastMessageId = 0;
+  let pollingTimer = null;
+
+  function showChatStatus(message, kind = "info") {
+    if (!message) {
+      chatStatus.textContent = "";
+      chatStatus.className = "notice notice-info hidden";
+      return;
+    }
+    chatStatus.textContent = message;
+    chatStatus.className = `notice notice-${kind}`;
+  }
+
+  function escapeHtml(value) {
+    const div = document.createElement("div");
+    div.textContent = value ?? "";
+    return div.innerHTML;
+  }
+
+  function formatTime(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleString();
+  }
+
+  function appendMessage(item) {
+    const mine = Number(item.sender_id) === Number(currentUserId);
+    const wrapper = document.createElement("div");
+    wrapper.style.display = "grid";
+    wrapper.style.justifyItems = mine ? "end" : "start";
+
+    const bubble = document.createElement("div");
+    bubble.style.maxWidth = "80%";
+    bubble.style.padding = "10px 12px";
+    bubble.style.borderRadius = "12px";
+    bubble.style.border = "1px solid rgba(16,34,27,0.08)";
+    bubble.style.background = mine ? "rgba(15, 138, 95, 0.12)" : "rgba(255,255,255,0.9)";
+
+    bubble.innerHTML = `
+      <div style="font-weight:700; font-size:0.82rem; margin-bottom:4px;">${escapeHtml(mine ? "You" : (item.sender_name || "Friend"))}</div>
+      <div style="white-space:pre-wrap; word-break:break-word;">${escapeHtml(item.content || "")}</div>
+      <div class="muted" style="font-size:0.75rem; margin-top:6px;">${escapeHtml(formatTime(item.created_at))}</div>
+    `;
+
+    wrapper.appendChild(bubble);
+    messagesList.appendChild(wrapper);
+    if (item.id > lastMessageId) lastMessageId = item.id;
+  }
+
+  function renderMessages(items, { replace = false } = {}) {
+    if (replace) {
+      messagesList.innerHTML = "";
+      lastMessageId = 0;
+    }
+    if (!Array.isArray(items) || !items.length) {
+      if (replace) {
+        messagesList.innerHTML = '<div class="muted">No messages yet. Say hello and start your swap conversation.</div>';
+      }
+      return;
+    }
+    if (replace) messagesList.innerHTML = "";
+    items.forEach(appendMessage);
+    messagesList.scrollTop = messagesList.scrollHeight;
+  }
+
+  async function fetchMessages({ incremental = true, silent = false } = {}) {
+    if (!silent) showChatStatus("Loading messages...", "info");
+    const after = incremental ? lastMessageId : 0;
+    try {
+      const res = await fetch(`/api/chat/${connectionId}/messages?after_id=${after}&limit=150`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Could not load messages.");
+      const items = Array.isArray(data.items) ? data.items : [];
+      if (after === 0) {
+        renderMessages(items, { replace: true });
+      } else if (items.length) {
+        renderMessages(items, { replace: false });
+      }
+      if (!silent) showChatStatus("Chat synced.", "success");
+    } catch (err) {
+      console.error(err);
+      if (!silent) showChatStatus(err.message || "Could not load messages.", "error");
+    }
+  }
+
+  async function sendMessage(content) {
+    sendMessageBtn.disabled = true;
+    sendMessageBtn.textContent = "Sending...";
+    try {
+      const res = await fetch(`/api/chat/${connectionId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Could not send message.");
+      chatMessageInput.value = "";
+      if (data.item) {
+        if (messagesList.textContent.includes("No messages yet")) messagesList.innerHTML = "";
+        appendMessage(data.item);
+        messagesList.scrollTop = messagesList.scrollHeight;
+      } else {
+        await fetchMessages({ incremental: false, silent: true });
+      }
+      showChatStatus(data.message || "Message sent successfully!", "success");
+    } catch (err) {
+      console.error(err);
+      showChatStatus(err.message || "Could not send message.", "error");
+      if (window.skillSwap?.showToast) window.skillSwap.showToast(err.message || "Could not send message.", "error");
+    } finally {
+      sendMessageBtn.disabled = false;
+      sendMessageBtn.textContent = "Send Message";
+    }
+  }
+
+  chatForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const content = chatMessageInput.value.trim();
+    if (!content) {
+      showChatStatus("Please type a message before sending.", "error");
+      return;
+    }
+    sendMessage(content);
+  });
+
+  refreshChatBtn.addEventListener("click", () => fetchMessages({ incremental: false }));
+
+  window.addEventListener("load", async () => {
+    await fetchMessages({ incremental: false, silent: false });
+    pollingTimer = window.setInterval(() => fetchMessages({ incremental: true, silent: true }), 3000);
+  });
+
+  window.addEventListener("beforeunload", () => {
+    if (pollingTimer) window.clearInterval(pollingTimer);
+  });
+</script>
+{% endblock %}

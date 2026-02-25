@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-body">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow" style="margin-bottom:10px;">Network</div>
+        <h2>Your Friends</h2>
+        <p class="muted" style="margin-top:6px;">Accepted skill swaps become friends. Start chatting and keep learning together.</p>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a class="btn btn-soft btn-sm" href="{{ url_for('swap_requests_page') }}">Swap Requests</a>
+        <button class="btn btn-outline btn-sm" type="button" id="refreshFriendsBtn">Refresh</button>
+      </div>
+    </div>
+    <div id="friendsStatus" class="notice notice-info hidden" role="status" aria-live="polite"></div>
+  </div>
+</section>
+
+<section class="section">
+  <div id="friendsContainer" class="grid grid-2" aria-live="polite"></div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const friendsContainer = document.getElementById("friendsContainer");
+  const friendsStatus = document.getElementById("friendsStatus");
+  const refreshFriendsBtn = document.getElementById("refreshFriendsBtn");
+
+  function showFriendsStatus(message, kind = "info") {
+    if (!message) {
+      friendsStatus.textContent = "";
+      friendsStatus.className = "notice notice-info hidden";
+      return;
+    }
+    friendsStatus.textContent = message;
+    friendsStatus.className = `notice notice-${kind}`;
+  }
+
+  function escapeHtml(value) {
+    const div = document.createElement("div");
+    div.textContent = value ?? "";
+    return div.innerHTML;
+  }
+
+  function renderFriends(items) {
+    friendsContainer.innerHTML = "";
+    if (!items.length) {
+      friendsContainer.innerHTML = `
+        <div class="card" style="grid-column:1 / -1;">
+          <h3>No friends yet</h3>
+          <p class="muted">Accept a swap request (or get accepted) and your connection will appear here.</p>
+          <div style="margin-top:10px;">
+            <a class="btn btn-soft btn-sm" href="{{ url_for('browse_page') }}">Browse Skills</a>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    items.forEach((item) => {
+      const card = document.createElement("article");
+      card.className = "card";
+      const latestMessage = item.latest_message?.content || "";
+
+      card.innerHTML = `
+        <h3>${escapeHtml(item.friend?.name || "Friend")}</h3>
+        <p class="muted">${escapeHtml(item.friend?.location || "Location not shared")}${item.friend?.availability ? ` • ${escapeHtml(item.friend.availability)}` : ""}</p>
+        <div class="kv" style="margin-top:8px;">
+          <span><strong>Offers:</strong> ${escapeHtml(item.friend_skills?.offered || "-")}</span>
+          <span><strong>Wants:</strong> ${escapeHtml(item.friend_skills?.wanted || "-")}</span>
+        </div>
+        <p class="muted" style="margin-top:8px; min-height:18px; font-size:0.85rem;">
+          ${latestMessage ? `Last message: ${escapeHtml(latestMessage.slice(0, 70))}` : "No messages yet"}
+        </p>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+          <a class="btn btn-primary btn-sm" href="/chat/${item.id}">Open Chat</a>
+          <a class="btn btn-outline btn-sm" href="{{ url_for('support_page') }}">Need Help?</a>
+        </div>
+      `;
+      friendsContainer.appendChild(card);
+    });
+  }
+
+  async function loadFriends() {
+    refreshFriendsBtn.disabled = true;
+    refreshFriendsBtn.textContent = "Refreshing...";
+    showFriendsStatus("Loading friends...", "info");
+    try {
+      const res = await fetch("/api/friends");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Could not load friends.");
+      const items = Array.isArray(data.items) ? data.items : [];
+      renderFriends(items);
+      showFriendsStatus(`Loaded ${items.length} friend connection(s).`, "success");
+    } catch (err) {
+      console.error(err);
+      showFriendsStatus(err.message || "Could not load friends.", "error");
+      friendsContainer.innerHTML = '<div class="card" style="grid-column:1 / -1;"><p class="muted">Could not load friends right now.</p></div>';
+    } finally {
+      refreshFriendsBtn.disabled = false;
+      refreshFriendsBtn.textContent = "Refresh";
+    }
+  }
+
+  refreshFriendsBtn.addEventListener("click", loadFriends);
+  window.addEventListener("load", loadFriends);
+</script>
+{% endblock %}

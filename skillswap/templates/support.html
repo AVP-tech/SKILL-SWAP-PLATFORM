@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="grid grid-2">
+  <section class="panel">
+    <div class="panel-body">
+      <div class="eyebrow">Support</div>
+      <h2 style="margin-bottom:8px;">Raise a Query / Complaint</h2>
+      <p class="muted">Use this form for bugs, swap issues, abuse reports, or feature requests. Your tickets stay visible in your support history.</p>
+
+      <div id="supportStatus" class="notice notice-info hidden" role="status" aria-live="polite" style="margin:12px 0;"></div>
+
+      <form id="supportForm">
+        <div class="field">
+          <label for="supportCategory">Category</label>
+          <select id="supportCategory" name="category">
+            <option value="swap_issue">Swap Issue</option>
+            <option value="report_user">Report User</option>
+            <option value="bug">Bug</option>
+            <option value="account_issue">Account Issue</option>
+            <option value="feature_request">Feature Request</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="supportSubject">Subject</label>
+          <input type="text" id="supportSubject" maxlength="120" placeholder="Short summary of your query" required />
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="supportRelatedSkill">Related Skill (optional)</label>
+            <input type="text" id="supportRelatedSkill" maxlength="100" data-suggest-type="skill" placeholder="e.g., Digital Marketing" />
+          </div>
+          <div class="field">
+            <label for="supportRelatedLocation">Related Location (optional)</label>
+            <input type="text" id="supportRelatedLocation" maxlength="100" data-suggest-type="location" placeholder="e.g., Ahmedabad" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="supportDescription">Description</label>
+          <textarea id="supportDescription" rows="5" maxlength="2000" style="width:100%;border-radius:12px;border:1px solid rgba(16,34,27,0.12);padding:11px 12px;font:inherit;resize:vertical;" placeholder="Describe the issue in detail..." required></textarea>
+        </div>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-primary" id="submitSupportBtn" type="submit">Submit Query</button>
+          <button class="btn btn-outline" id="reloadTicketsBtn" type="button">Refresh My Queries</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-body">
+      <div class="section-head">
+        <h2>My Queries</h2>
+        <span class="pill" id="ticketsCountPill">0 tickets</span>
+      </div>
+      <div id="ticketsContainer" class="stack" aria-live="polite"></div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const supportForm = document.getElementById("supportForm");
+  const supportStatus = document.getElementById("supportStatus");
+  const submitSupportBtn = document.getElementById("submitSupportBtn");
+  const reloadTicketsBtn = document.getElementById("reloadTicketsBtn");
+  const ticketsContainer = document.getElementById("ticketsContainer");
+  const ticketsCountPill = document.getElementById("ticketsCountPill");
+
+  function showSupportStatus(message, kind = "info") {
+    if (!message) {
+      supportStatus.textContent = "";
+      supportStatus.className = "notice notice-info hidden";
+      return;
+    }
+    supportStatus.textContent = message;
+    supportStatus.className = `notice notice-${kind}`;
+  }
+
+  function escapeHtml(value) {
+    const div = document.createElement("div");
+    div.textContent = value ?? "";
+    return div.innerHTML;
+  }
+
+  function prettyStatus(status) {
+    return (status || "open").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  function formatDate(value) {
+    if (!value) return "";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleString();
+  }
+
+  function renderTickets(items) {
+    ticketsCountPill.textContent = `${items.length} ticket${items.length === 1 ? "" : "s"}`;
+    ticketsContainer.innerHTML = "";
+
+    if (!items.length) {
+      ticketsContainer.innerHTML = '<div class="card"><p class="muted">No queries submitted yet.</p></div>';
+      return;
+    }
+
+    items.forEach((ticket) => {
+      const card = document.createElement("article");
+      card.className = "card";
+      card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+          <h3>${escapeHtml(ticket.subject || "Untitled Query")}</h3>
+          <span class="status-chip ${escapeHtml(ticket.status || "open")}">${escapeHtml(prettyStatus(ticket.status))}</span>
+        </div>
+        <p class="muted" style="margin-top:4px;">Category: ${escapeHtml(prettyStatus(ticket.category))}</p>
+        ${ticket.related_skill ? `<p class="muted" style="margin-top:4px;">Related Skill: ${escapeHtml(ticket.related_skill)}</p>` : ""}
+        ${ticket.related_location ? `<p class="muted" style="margin-top:4px;">Related Location: ${escapeHtml(ticket.related_location)}</p>` : ""}
+        <p style="margin-top:8px; white-space:pre-wrap;">${escapeHtml(ticket.description || "")}</p>
+        <p class="muted" style="margin-top:8px; font-size:0.82rem;">Created: ${escapeHtml(formatDate(ticket.created_at))}</p>
+      `;
+      ticketsContainer.appendChild(card);
+    });
+  }
+
+  async function loadTickets() {
+    reloadTicketsBtn.disabled = true;
+    reloadTicketsBtn.textContent = "Refreshing...";
+    try {
+      const res = await fetch("/api/support_tickets");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Could not load queries.");
+      const items = Array.isArray(data.items) ? data.items : [];
+      renderTickets(items);
+      showSupportStatus(`Loaded ${items.length} query ticket(s).`, "success");
+    } catch (err) {
+      console.error(err);
+      showSupportStatus(err.message || "Could not load queries.", "error");
+      ticketsContainer.innerHTML = '<div class="card"><p class="muted">Could not load your queries right now.</p></div>';
+    } finally {
+      reloadTicketsBtn.disabled = false;
+      reloadTicketsBtn.textContent = "Refresh My Queries";
+    }
+  }
+
+  supportForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const payload = {
+      category: document.getElementById("supportCategory").value,
+      subject: document.getElementById("supportSubject").value.trim(),
+      related_skill: document.getElementById("supportRelatedSkill").value.trim(),
+      related_location: document.getElementById("supportRelatedLocation").value.trim(),
+      description: document.getElementById("supportDescription").value.trim(),
+    };
+
+    if (!payload.subject || !payload.description) {
+      showSupportStatus("Subject and description are required.", "error");
+      return;
+    }
+
+    submitSupportBtn.disabled = true;
+    submitSupportBtn.textContent = "Submitting...";
+    showSupportStatus("Submitting your query...", "info");
+
+    try {
+      const res = await fetch("/api/support_tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Could not submit query.");
+
+      showSupportStatus(data.message || "Query submitted successfully!", "success");
+      if (window.skillSwap?.showToast) window.skillSwap.showToast("Query submitted successfully", "success");
+      supportForm.reset();
+      await loadTickets();
+    } catch (err) {
+      console.error(err);
+      showSupportStatus(err.message || "Could not submit query.", "error");
+      if (window.skillSwap?.showToast) window.skillSwap.showToast(err.message || "Could not submit query.", "error");
+    } finally {
+      submitSupportBtn.disabled = false;
+      submitSupportBtn.textContent = "Submit Query";
+    }
+  });
+
+  reloadTicketsBtn.addEventListener("click", loadTickets);
+
+  window.addEventListener("load", () => {
+    if (window.skillSwap?.setupAutocompletes) {
+      window.skillSwap.setupAutocompletes(supportForm);
+    }
+    loadTickets();
+  });
+</script>
+{% endblock %}

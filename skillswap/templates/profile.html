@@ -25,7 +25,13 @@
             <div class="stack">
               <a class="btn btn-soft" href="{{ url_for('browse_page') }}">Browse Public Skills</a>
               <a class="btn btn-outline" href="{{ url_for('swap_requests_page') }}">View Swap Requests</a>
+              <a class="btn btn-outline" href="{{ url_for('friends_page') }}">Open Friends</a>
+              <a class="btn btn-outline" href="{{ url_for('support_page') }}">Support / Query</a>
             </div>
+          </div>
+          <div class="card">
+            <h3>Engagement ideas</h3>
+            <p class="muted">Complete your profile, accept swaps, and start chats to build your learning network faster.</p>
           </div>
         </div>
       </div>
@@ -49,17 +55,17 @@
 
         <div class="field">
           <label for="location">Location</label>
-          <input type="text" id="location" name="location" maxlength="100" placeholder="e.g., Delhi, Bangalore" />
+          <input type="text" id="location" name="location" maxlength="100" placeholder="e.g., Delhi, Bangalore" data-suggest-type="location" />
         </div>
 
         <div class="field">
           <label for="skills_offered">Skills You Offer</label>
-          <input type="text" id="skills_offered" name="skills_offered" required maxlength="100" placeholder="e.g., Photoshop, Python basics" />
+          <input type="text" id="skills_offered" name="skills_offered" required maxlength="100" placeholder="e.g., Photoshop, Python basics" data-suggest-type="skill" />
         </div>
 
         <div class="field">
           <label for="skills_wanted">Skills You Want to Learn</label>
-          <input type="text" id="skills_wanted" name="skills_wanted" required maxlength="100" placeholder="e.g., Excel dashboards, Public speaking" />
+          <input type="text" id="skills_wanted" name="skills_wanted" required maxlength="100" placeholder="e.g., Excel dashboards, Public speaking" data-suggest-type="skill" />
         </div>
 
         <div class="field">
@@ -86,7 +92,7 @@
         </div>
 
         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:6px;">
-          <button type="submit" class="btn btn-primary" id="saveProfileBtn">Save Profile</button>
+          <button type="submit" class="btn btn-primary" id="saveProfileBtn">Create Profile</button>
           <button type="button" class="btn btn-outline" id="reloadProfileBtn">Reload</button>
         </div>
       </form>
@@ -102,6 +108,7 @@
   const reloadProfileBtn = document.getElementById("reloadProfileBtn");
   const profileStatus = document.getElementById("profileStatus");
   const profileLoadBadge = document.getElementById("profileLoadBadge");
+  let hasProfile = false;
 
   function showProfileStatus(message, kind = "info") {
     if (!message) {
@@ -123,6 +130,10 @@
     profileLoadBadge.textContent = text;
   }
 
+  function refreshSaveButtonLabel() {
+    saveProfileBtn.textContent = hasProfile ? "Update Profile" : "Create Profile";
+  }
+
   function fillProfile(data) {
     document.getElementById("name").value = data.name || "";
     document.getElementById("location").value = data.location || "";
@@ -133,6 +144,9 @@
     const visibility = data.visibility === "private" ? "private" : "public";
     const radio = profileForm.querySelector(`input[name="visibility"][value="${visibility}"]`);
     if (radio) radio.checked = true;
+
+    hasProfile = Boolean(data.has_profile);
+    refreshSaveButtonLabel();
   }
 
   async function loadProfile(showLoadingNotice = true) {
@@ -194,17 +208,23 @@
       const data = await res.json().catch(() => ({ message: "Unexpected response from server." }));
       if (!res.ok) {
         showProfileStatus(data.message || "Could not save profile.", "error");
+        if (window.skillSwap?.showToast) window.skillSwap.showToast(data.message || "Could not save profile.", "error");
         return;
       }
 
-      showProfileStatus(data.message || "Profile updated successfully!", "success");
+      hasProfile = true;
+      const action = data.action === "created" ? "created" : "updated";
+      const successMessage = action === "created" ? "Profile created successfully" : "Profile updated successfully";
+      showProfileStatus(data.message || successMessage, "success");
+      if (window.skillSwap?.showToast) window.skillSwap.showToast(successMessage, "success");
       setLoadBadge("Saved");
     } catch (err) {
       console.error(err);
       showProfileStatus("Something went wrong while saving.", "error");
+      if (window.skillSwap?.showToast) window.skillSwap.showToast("Something went wrong while saving.", "error");
     } finally {
       saveProfileBtn.disabled = false;
-      saveProfileBtn.textContent = "Save Profile";
+      refreshSaveButtonLabel();
     }
   });
 
@@ -213,6 +233,10 @@
   });
 
   window.addEventListener("load", () => {
+    if (window.skillSwap?.setupAutocompletes) {
+      window.skillSwap.setupAutocompletes(profileForm);
+    }
+    refreshSaveButtonLabel();
     loadProfile(false);
   });
 </script>

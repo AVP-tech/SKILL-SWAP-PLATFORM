@@ -451,6 +451,90 @@
       box-shadow: 0 0 0 4px rgba(15, 138, 95, 0.10);
     }
 
+    .autocomplete-anchor {
+      position: relative;
+    }
+
+    .autocomplete-menu {
+      position: absolute;
+      z-index: 40;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid rgba(16, 34, 27, 0.12);
+      border-radius: 12px;
+      box-shadow: 0 12px 24px rgba(16, 34, 27, 0.12);
+      overflow: hidden;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+
+    .autocomplete-menu.hidden {
+      display: none;
+    }
+
+    .autocomplete-item {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      text-align: left;
+      padding: 10px 12px;
+      cursor: pointer;
+      color: var(--text);
+      font-size: 0.92rem;
+      display: grid;
+      gap: 2px;
+    }
+
+    .autocomplete-item:hover,
+    .autocomplete-item.active {
+      background: rgba(15, 138, 95, 0.08);
+    }
+
+    .autocomplete-item small {
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .toast-stack {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      display: grid;
+      gap: 10px;
+      z-index: 100;
+      width: min(360px, calc(100vw - 24px));
+    }
+
+    .toast {
+      border-radius: 12px;
+      padding: 10px 12px;
+      border: 1px solid rgba(16, 34, 27, 0.10);
+      background: rgba(255, 255, 255, 0.95);
+      box-shadow: 0 10px 18px rgba(16, 34, 27, 0.12);
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+
+    .toast.success {
+      border-color: rgba(15, 138, 95, 0.22);
+      background: rgba(233, 255, 246, 0.98);
+      color: #0b6a50;
+    }
+
+    .toast.error {
+      border-color: rgba(207, 63, 77, 0.22);
+      background: rgba(255, 241, 242, 0.98);
+      color: #992536;
+    }
+
+    .toast.info {
+      border-color: rgba(15, 138, 95, 0.15);
+      background: rgba(245, 253, 249, 0.98);
+      color: #0e5f49;
+    }
+
     .field-row {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -542,6 +626,25 @@
       border-color: rgba(207, 63, 77, 0.16);
     }
 
+    .status-chip.open {
+      background: rgba(255, 140, 66, 0.10);
+      color: #9a4c12;
+      border-color: rgba(255, 140, 66, 0.18);
+    }
+
+    .status-chip.in_progress {
+      background: rgba(56, 120, 255, 0.10);
+      color: #1e52b8;
+      border-color: rgba(56, 120, 255, 0.18);
+    }
+
+    .status-chip.resolved,
+    .status-chip.closed {
+      background: rgba(15, 138, 95, 0.10);
+      color: #0b6b51;
+      border-color: rgba(15, 138, 95, 0.2);
+    }
+
     .kv {
       display: grid;
       gap: 6px;
@@ -631,6 +734,8 @@
         <a href="{{ url_for('profile_page') }}" class="{% if request.path.startswith('/profile') %}active{% endif %}">Profile</a>
         <a href="{{ url_for('browse_page') }}" class="{% if request.path.startswith('/browse') %}active{% endif %}">Browse</a>
         <a href="{{ url_for('swap_requests_page') }}" class="{% if request.path.startswith('/swap-requests') %}active{% endif %}">Requests</a>
+        <a href="{{ url_for('friends_page') }}" class="{% if request.path.startswith('/friends') or request.path.startswith('/chat') %}active{% endif %}">Friends</a>
+        <a href="{{ url_for('support_page') }}" class="{% if request.path.startswith('/support') %}active{% endif %}">Support</a>
         <form method="POST" action="{{ url_for('logout') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <button type="submit" class="nav-btn">Logout</button>
@@ -671,6 +776,144 @@
 
         return originalFetch(input, config);
       };
+
+      const toastStack = document.createElement("div");
+      toastStack.className = "toast-stack";
+      document.body.appendChild(toastStack);
+
+      let toastCounter = 0;
+      window.skillSwap.showToast = function (message, kind = "info", timeout = 2600) {
+        if (!message) return;
+        const toast = document.createElement("div");
+        toast.className = `toast ${kind}`;
+        toast.dataset.toastId = String(++toastCounter);
+        toast.textContent = message;
+        toastStack.appendChild(toast);
+        window.setTimeout(() => {
+          toast.remove();
+        }, timeout);
+      };
+
+      function setupAutocomplete(input) {
+        if (!input || input.dataset.autocompleteBound === "1") return;
+        const type = input.dataset.suggestType;
+        if (!type) return;
+
+        input.dataset.autocompleteBound = "1";
+        input.setAttribute("autocomplete", "off");
+
+        if (!input.parentElement.classList.contains("autocomplete-anchor")) {
+          input.parentElement.classList.add("autocomplete-anchor");
+        }
+
+        const menu = document.createElement("div");
+        menu.className = "autocomplete-menu hidden";
+        input.parentElement.appendChild(menu);
+
+        let items = [];
+        let activeIndex = -1;
+        let debounceTimer = null;
+
+        function closeMenu() {
+          menu.classList.add("hidden");
+          menu.innerHTML = "";
+          items = [];
+          activeIndex = -1;
+        }
+
+        function applyItem(item) {
+          input.value = item.value || item.label || "";
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+          closeMenu();
+        }
+
+        function renderMenu(nextItems) {
+          items = Array.isArray(nextItems) ? nextItems : [];
+          activeIndex = -1;
+          menu.innerHTML = "";
+          if (!items.length) {
+            closeMenu();
+            return;
+          }
+
+          items.forEach((item, index) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "autocomplete-item";
+            btn.innerHTML = `
+              <span>${(item.label || item.value || "").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</span>
+              ${item.city && item.country ? `<small>${item.city}, ${item.country}</small>` : ""}
+            `;
+            btn.addEventListener("mousedown", (event) => {
+              event.preventDefault();
+              applyItem(item);
+            });
+            btn.addEventListener("mouseenter", () => {
+              activeIndex = index;
+              Array.from(menu.children).forEach((node, i) => node.classList.toggle("active", i === activeIndex));
+            });
+            menu.appendChild(btn);
+          });
+
+          menu.classList.remove("hidden");
+        }
+
+        async function fetchSuggestions() {
+          const q = input.value.trim();
+          if (q.length < 1) {
+            closeMenu();
+            return;
+          }
+          const endpoint = type === "location" ? "/api/suggestions/locations" : "/api/suggestions/skills";
+          try {
+            const res = await fetch(`${endpoint}?q=${encodeURIComponent(q)}&limit=8`);
+            const data = await res.json().catch(() => ({ items: [] }));
+            if (!res.ok) return closeMenu();
+            renderMenu(data.items || []);
+          } catch (_err) {
+            closeMenu();
+          }
+        }
+
+        input.addEventListener("input", () => {
+          window.clearTimeout(debounceTimer);
+          debounceTimer = window.setTimeout(fetchSuggestions, 220);
+        });
+
+        input.addEventListener("keydown", (event) => {
+          if (menu.classList.contains("hidden") || !items.length) return;
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            activeIndex = (activeIndex + 1) % items.length;
+          } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            activeIndex = (activeIndex - 1 + items.length) % items.length;
+          } else if (event.key === "Enter") {
+            if (activeIndex >= 0 && activeIndex < items.length) {
+              event.preventDefault();
+              applyItem(items[activeIndex]);
+            }
+            return;
+          } else if (event.key === "Escape") {
+            closeMenu();
+            return;
+          } else {
+            return;
+          }
+          Array.from(menu.children).forEach((node, i) => node.classList.toggle("active", i === activeIndex));
+        });
+
+        input.addEventListener("blur", () => {
+          window.setTimeout(closeMenu, 120);
+        });
+      }
+
+      window.skillSwap.setupAutocompletes = function (root = document) {
+        root.querySelectorAll("[data-suggest-type]").forEach(setupAutocomplete);
+      };
+
+      window.skillSwap.setupAutocompletes(document);
     })();
   </script>
   {% block scripts %}{% endblock %}

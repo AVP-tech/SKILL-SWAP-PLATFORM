@@ -13,6 +13,7 @@
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <a class="btn btn-soft btn-sm" href="{{ url_for('browse_page') }}">Browse Skills</a>
+        <a class="btn btn-outline btn-sm" href="{{ url_for('friends_page') }}">Friends</a>
         <button class="btn btn-outline btn-sm" type="button" id="refreshRequestsBtn">Refresh</button>
       </div>
     </div>
@@ -101,6 +102,9 @@
         buttons.push('<button class="btn btn-primary btn-sm" data-action="accepted">Accept</button>');
         buttons.push('<button class="btn btn-danger btn-sm" data-action="rejected">Reject</button>');
       }
+    }
+    if (item.status === "accepted" && item.connection_id) {
+      buttons.push(`<a class="btn btn-soft btn-sm" href="/chat/${item.connection_id}">Open Chat</a>`);
     }
 
     return `

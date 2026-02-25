@@ -60,4 +60,109 @@
     </article>
   </div>
 </section>
+
+{% if current_user.is_authenticated %}
+<section class="section">
+  <div class="section-head">
+    <h2>Recommended For You</h2>
+    <span class="pill">Based on your profile</span>
+  </div>
+
+  <div class="grid grid-2">
+    {% if recommended_matches %}
+      {% for item in recommended_matches %}
+      <article class="card">
+        <h3>{{ item.name }}</h3>
+        <p class="muted">{{ item.location or "Location not shared" }}{% if item.availability %} • {{ item.availability }}{% endif %}</p>
+        <div class="kv" style="margin-top:8px;">
+          <span><strong>Offers:</strong> {{ item.skill }}</span>
+          <span><strong>Match Score:</strong> {{ item.score }}</span>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+          <a class="btn btn-soft btn-sm" href="{{ url_for('browse_page') }}">Browse & Request</a>
+        </div>
+      </article>
+      {% endfor %}
+    {% else %}
+      <article class="card" style="grid-column:1 / -1;">
+        <h3>Build your profile to unlock better recommendations</h3>
+        <p class="muted">Add both offered and wanted skills, location, and availability to get smarter matches.</p>
+        <div style="margin-top:10px;">
+          <a class="btn btn-primary btn-sm" href="{{ url_for('profile_page') }}">Complete Profile</a>
+        </div>
+      </article>
+    {% endif %}
+  </div>
+</section>
+
+<section class="section">
+  <div class="grid grid-3">
+    <article class="card">
+      <h3>Trending Skills</h3>
+      {% if trending_skills %}
+      <div class="stack" style="margin-top:8px;">
+        {% for trend in trending_skills %}
+        <div style="display:flex;justify-content:space-between;gap:10px;">
+          <span>{{ trend.skill }}</span>
+          <span class="pill">{{ trend.count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="muted">No trends available yet.</p>
+      {% endif %}
+    </article>
+
+    <article class="card">
+      <h3>Your Engagement Snapshot</h3>
+      {% if engagement_snapshot %}
+      <div class="stack" style="margin-top:8px;">
+        <div><strong>{{ engagement_snapshot.friends_count }}</strong> friend connections</div>
+        <div><strong>{{ engagement_snapshot.pending_received }}</strong> pending requests to review</div>
+        <div><strong>{{ engagement_snapshot.open_tickets }}</strong> open support queries</div>
+      </div>
+      {% else %}
+      <p class="muted">Login to see your personalized activity.</p>
+      {% endif %}
+    </article>
+
+    <article class="card">
+      <h3>Stay Engaged</h3>
+      <p class="muted">Reply faster, accept good matches, and keep conversations active to grow your learning network.</p>
+      <div class="stack" style="margin-top:10px;">
+        <a class="btn btn-soft btn-sm" href="{{ url_for('friends_page') }}">Open Friends</a>
+        <a class="btn btn-outline btn-sm" href="{{ url_for('support_page') }}">Submit a Query</a>
+      </div>
+    </article>
+  </div>
+</section>
+{% else %}
+<section class="section">
+  <div class="grid grid-3">
+    <article class="card">
+      <h3>Trending Skills</h3>
+      {% if trending_skills %}
+      <div class="stack" style="margin-top:8px;">
+        {% for trend in trending_skills %}
+        <div style="display:flex;justify-content:space-between;gap:10px;">
+          <span>{{ trend.skill }}</span>
+          <span class="pill">{{ trend.count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="muted">Join the platform to explore emerging skill trends.</p>
+      {% endif %}
+    </article>
+    <article class="card">
+      <h3>Guided Suggestions</h3>
+      <p class="muted">Profile and search fields support smart suggestions for locations and skills, helping you fill forms faster.</p>
+    </article>
+    <article class="card">
+      <h3>Built for Collaboration</h3>
+      <p class="muted">Swap requests, friends, chat, and query support make this feel like a real learning community.</p>
+    </article>
+  </div>
+</section>
+{% endif %}
 {% endblock %}

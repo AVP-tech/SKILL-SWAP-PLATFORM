@@ -19,7 +19,7 @@ from flask_login import (
 )
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFError, CSRFProtect, generate_csrf
-from sqlalchemy import or_
+from sqlalchemy import UniqueConstraint, func, or_
 from sqlalchemy.exc import IntegrityError
 
 
@@ -85,6 +85,154 @@ EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 VALID_AVAILABILITY = {"weekends", "evenings", "anytime"}
 API_PREFIXES = ("/api/", "/skills/", "/swap_request", "/respond_swap")
 CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
+EXCLUDED_LOCATION_COUNTRY_CODES = {"PK", "BD"}
+VALID_SUPPORT_CATEGORIES = {
+    "bug",
+    "account_issue",
+    "swap_issue",
+    "report_user",
+    "feature_request",
+    "other",
+}
+VALID_SUPPORT_STATUSES = {"open", "in_progress", "resolved", "closed"}
+
+# Starter global city dataset for autocomplete (PK and BD excluded by rule).
+LOCATION_SUGGESTIONS = [
+    {"city": "Ahmedabad", "country": "India", "country_code": "IN"},
+    {"city": "Mumbai", "country": "India", "country_code": "IN"},
+    {"city": "Delhi", "country": "India", "country_code": "IN"},
+    {"city": "Bengaluru", "country": "India", "country_code": "IN"},
+    {"city": "Hyderabad", "country": "India", "country_code": "IN"},
+    {"city": "Pune", "country": "India", "country_code": "IN"},
+    {"city": "Chennai", "country": "India", "country_code": "IN"},
+    {"city": "Kolkata", "country": "India", "country_code": "IN"},
+    {"city": "Jaipur", "country": "India", "country_code": "IN"},
+    {"city": "Surat", "country": "India", "country_code": "IN"},
+    {"city": "London", "country": "United Kingdom", "country_code": "GB"},
+    {"city": "Manchester", "country": "United Kingdom", "country_code": "GB"},
+    {"city": "Birmingham", "country": "United Kingdom", "country_code": "GB"},
+    {"city": "New York", "country": "United States", "country_code": "US"},
+    {"city": "Los Angeles", "country": "United States", "country_code": "US"},
+    {"city": "Chicago", "country": "United States", "country_code": "US"},
+    {"city": "San Francisco", "country": "United States", "country_code": "US"},
+    {"city": "Seattle", "country": "United States", "country_code": "US"},
+    {"city": "Austin", "country": "United States", "country_code": "US"},
+    {"city": "Boston", "country": "United States", "country_code": "US"},
+    {"city": "Toronto", "country": "Canada", "country_code": "CA"},
+    {"city": "Vancouver", "country": "Canada", "country_code": "CA"},
+    {"city": "Montreal", "country": "Canada", "country_code": "CA"},
+    {"city": "Sydney", "country": "Australia", "country_code": "AU"},
+    {"city": "Melbourne", "country": "Australia", "country_code": "AU"},
+    {"city": "Brisbane", "country": "Australia", "country_code": "AU"},
+    {"city": "Auckland", "country": "New Zealand", "country_code": "NZ"},
+    {"city": "Singapore", "country": "Singapore", "country_code": "SG"},
+    {"city": "Tokyo", "country": "Japan", "country_code": "JP"},
+    {"city": "Osaka", "country": "Japan", "country_code": "JP"},
+    {"city": "Seoul", "country": "South Korea", "country_code": "KR"},
+    {"city": "Busan", "country": "South Korea", "country_code": "KR"},
+    {"city": "Bangkok", "country": "Thailand", "country_code": "TH"},
+    {"city": "Chiang Mai", "country": "Thailand", "country_code": "TH"},
+    {"city": "Kuala Lumpur", "country": "Malaysia", "country_code": "MY"},
+    {"city": "Jakarta", "country": "Indonesia", "country_code": "ID"},
+    {"city": "Bali", "country": "Indonesia", "country_code": "ID"},
+    {"city": "Manila", "country": "Philippines", "country_code": "PH"},
+    {"city": "Dubai", "country": "United Arab Emirates", "country_code": "AE"},
+    {"city": "Abu Dhabi", "country": "United Arab Emirates", "country_code": "AE"},
+    {"city": "Riyadh", "country": "Saudi Arabia", "country_code": "SA"},
+    {"city": "Jeddah", "country": "Saudi Arabia", "country_code": "SA"},
+    {"city": "Doha", "country": "Qatar", "country_code": "QA"},
+    {"city": "Muscat", "country": "Oman", "country_code": "OM"},
+    {"city": "Kuwait City", "country": "Kuwait", "country_code": "KW"},
+    {"city": "Istanbul", "country": "Turkey", "country_code": "TR"},
+    {"city": "Ankara", "country": "Turkey", "country_code": "TR"},
+    {"city": "Berlin", "country": "Germany", "country_code": "DE"},
+    {"city": "Munich", "country": "Germany", "country_code": "DE"},
+    {"city": "Hamburg", "country": "Germany", "country_code": "DE"},
+    {"city": "Paris", "country": "France", "country_code": "FR"},
+    {"city": "Lyon", "country": "France", "country_code": "FR"},
+    {"city": "Marseille", "country": "France", "country_code": "FR"},
+    {"city": "Madrid", "country": "Spain", "country_code": "ES"},
+    {"city": "Barcelona", "country": "Spain", "country_code": "ES"},
+    {"city": "Valencia", "country": "Spain", "country_code": "ES"},
+    {"city": "Rome", "country": "Italy", "country_code": "IT"},
+    {"city": "Milan", "country": "Italy", "country_code": "IT"},
+    {"city": "Naples", "country": "Italy", "country_code": "IT"},
+    {"city": "Amsterdam", "country": "Netherlands", "country_code": "NL"},
+    {"city": "Rotterdam", "country": "Netherlands", "country_code": "NL"},
+    {"city": "Brussels", "country": "Belgium", "country_code": "BE"},
+    {"city": "Zurich", "country": "Switzerland", "country_code": "CH"},
+    {"city": "Geneva", "country": "Switzerland", "country_code": "CH"},
+    {"city": "Vienna", "country": "Austria", "country_code": "AT"},
+    {"city": "Prague", "country": "Czech Republic", "country_code": "CZ"},
+    {"city": "Warsaw", "country": "Poland", "country_code": "PL"},
+    {"city": "Budapest", "country": "Hungary", "country_code": "HU"},
+    {"city": "Athens", "country": "Greece", "country_code": "GR"},
+    {"city": "Stockholm", "country": "Sweden", "country_code": "SE"},
+    {"city": "Oslo", "country": "Norway", "country_code": "NO"},
+    {"city": "Copenhagen", "country": "Denmark", "country_code": "DK"},
+    {"city": "Helsinki", "country": "Finland", "country_code": "FI"},
+    {"city": "Dublin", "country": "Ireland", "country_code": "IE"},
+    {"city": "Lisbon", "country": "Portugal", "country_code": "PT"},
+    {"city": "Moscow", "country": "Russia", "country_code": "RU"},
+    {"city": "St Petersburg", "country": "Russia", "country_code": "RU"},
+    {"city": "Kyiv", "country": "Ukraine", "country_code": "UA"},
+    {"city": "Cape Town", "country": "South Africa", "country_code": "ZA"},
+    {"city": "Johannesburg", "country": "South Africa", "country_code": "ZA"},
+    {"city": "Nairobi", "country": "Kenya", "country_code": "KE"},
+    {"city": "Lagos", "country": "Nigeria", "country_code": "NG"},
+    {"city": "Accra", "country": "Ghana", "country_code": "GH"},
+    {"city": "Cairo", "country": "Egypt", "country_code": "EG"},
+    {"city": "Casablanca", "country": "Morocco", "country_code": "MA"},
+    {"city": "Tunis", "country": "Tunisia", "country_code": "TN"},
+    {"city": "Addis Ababa", "country": "Ethiopia", "country_code": "ET"},
+    {"city": "São Paulo", "country": "Brazil", "country_code": "BR"},
+    {"city": "Rio de Janeiro", "country": "Brazil", "country_code": "BR"},
+    {"city": "Brasília", "country": "Brazil", "country_code": "BR"},
+    {"city": "Buenos Aires", "country": "Argentina", "country_code": "AR"},
+    {"city": "Santiago", "country": "Chile", "country_code": "CL"},
+    {"city": "Lima", "country": "Peru", "country_code": "PE"},
+    {"city": "Bogotá", "country": "Colombia", "country_code": "CO"},
+    {"city": "Medellín", "country": "Colombia", "country_code": "CO"},
+    {"city": "Mexico City", "country": "Mexico", "country_code": "MX"},
+    {"city": "Guadalajara", "country": "Mexico", "country_code": "MX"},
+    {"city": "Monterrey", "country": "Mexico", "country_code": "MX"},
+]
+
+BASE_SKILL_SUGGESTIONS = [
+    "Python",
+    "JavaScript",
+    "React",
+    "Node.js",
+    "Digital Marketing",
+    "SEO",
+    "Content Writing",
+    "Graphic Design",
+    "Photoshop",
+    "Canva",
+    "Video Editing",
+    "Public Speaking",
+    "Excel Dashboards",
+    "Data Analysis",
+    "SQL",
+    "UI/UX Design",
+    "Figma",
+    "Guitar",
+    "Piano",
+    "Singing",
+    "Photography",
+    "Social Media Strategy",
+    "Machine Learning",
+    "Power BI",
+    "Communication Skills",
+    "Resume Writing",
+    "Interview Preparation",
+    "Web Development",
+    "Flask",
+    "Django",
+    "Java",
+    "C++",
+    "Leadership",
+]
 
 
 # ---------------- MODELS ----------------
@@ -131,6 +279,59 @@ class SwapRequest(db.Model):
             f"<SwapRequest id={self.id} requester_id={self.requester_id} "
             f"target_id={self.target_id} status={self.status!r}>"
         )
+
+
+class Connection(db.Model):
+    __table_args__ = (
+        UniqueConstraint("user1_id", "user2_id", name="uq_connection_pair"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    user1_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    user2_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    source_swap_request_id = db.Column(db.Integer, db.ForeignKey("swap_request.id"), nullable=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    user1 = db.relationship("User", foreign_keys=[user1_id], lazy="joined")
+    user2 = db.relationship("User", foreign_keys=[user2_id], lazy="joined")
+    source_swap_request = db.relationship("SwapRequest", foreign_keys=[source_swap_request_id], lazy="joined")
+
+    def __repr__(self):
+        return f"<Connection id={self.id} pair=({self.user1_id}, {self.user2_id}) active={self.is_active}>"
+
+
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    connection_id = db.Column(db.Integer, db.ForeignKey("connection.id"), nullable=False, index=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    content = db.Column(db.String(1000), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    is_read = db.Column(db.Boolean, nullable=False, default=False)
+
+    connection = db.relationship("Connection", lazy="joined")
+    sender = db.relationship("User", foreign_keys=[sender_id], lazy="joined")
+
+    def __repr__(self):
+        return f"<Message id={self.id} connection_id={self.connection_id} sender_id={self.sender_id}>"
+
+
+class SupportTicket(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    category = db.Column(db.String(30), nullable=False, default="other", index=True)
+    subject = db.Column(db.String(120), nullable=False)
+    related_skill = db.Column(db.String(100), nullable=True)
+    related_location = db.Column(db.String(100), nullable=True)
+    description = db.Column(db.String(2000), nullable=False)
+    status = db.Column(db.String(20), nullable=False, default="open", index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship("User", foreign_keys=[user_id], lazy="joined")
+
+    def __repr__(self):
+        return f"<SupportTicket id={self.id} user_id={self.user_id} status={self.status!r}>"
 
 
 @login_manager.user_loader
@@ -230,13 +431,286 @@ def user_skill_map(user_ids):
     return lookup
 
 
-def serialize_swap_request(item, skill_lookup):
+def has_configured_profile(user_id):
+    offered = get_skill_value(user_id, "offered")
+    wanted = get_skill_value(user_id, "wanted")
+    return bool(offered and wanted)
+
+
+def normalize_connection_pair(user_a_id, user_b_id):
+    low, high = sorted([int(user_a_id), int(user_b_id)])
+    return low, high
+
+
+def get_connection_between_users(user_a_id, user_b_id):
+    user1_id, user2_id = normalize_connection_pair(user_a_id, user_b_id)
+    return Connection.query.filter_by(user1_id=user1_id, user2_id=user2_id, is_active=True).first()
+
+
+def create_connection_if_missing(user_a_id, user_b_id, *, source_swap_request_id=None):
+    if user_a_id == user_b_id:
+        return None
+    existing = get_connection_between_users(user_a_id, user_b_id)
+    if existing:
+        return existing
+
+    user1_id, user2_id = normalize_connection_pair(user_a_id, user_b_id)
+    connection = Connection(
+        user1_id=user1_id,
+        user2_id=user2_id,
+        source_swap_request_id=source_swap_request_id,
+        is_active=True,
+    )
+    db.session.add(connection)
+    return connection
+
+
+def user_is_connection_participant(connection, user_id):
+    return connection and user_id in {connection.user1_id, connection.user2_id}
+
+
+def get_other_connection_user(connection, user_id):
+    if not connection:
+        return None
+    other_user_id = connection.user2_id if connection.user1_id == user_id else connection.user1_id
+    return connection.user2 if connection.user2_id == other_user_id else connection.user1
+
+
+def serialize_connection(connection, *, viewer_id=None, skill_lookup=None):
+    viewer_id = viewer_id or current_user.id
+    other_user = get_other_connection_user(connection, viewer_id)
+    if not other_user:
+        return None
+
+    skill_lookup = skill_lookup or {}
+    other_skills = skill_lookup.get(other_user.id, {"offered": "", "wanted": ""})
+    latest_message = (
+        Message.query.filter_by(connection_id=connection.id)
+        .order_by(Message.created_at.desc())
+        .first()
+    )
+
+    return {
+        "id": connection.id,
+        "created_at": connection.created_at.isoformat() if connection.created_at else None,
+        "friend": {
+            "id": other_user.id,
+            "name": other_user.name,
+            "location": other_user.location or "",
+            "availability": other_user.availability or "",
+        },
+        "friend_skills": {
+            "offered": other_skills.get("offered", ""),
+            "wanted": other_skills.get("wanted", ""),
+        },
+        "latest_message": {
+            "content": latest_message.content if latest_message else "",
+            "sender_id": latest_message.sender_id if latest_message else None,
+            "created_at": latest_message.created_at.isoformat() if latest_message and latest_message.created_at else None,
+        },
+    }
+
+
+def serialize_message(message):
+    return {
+        "id": message.id,
+        "connection_id": message.connection_id,
+        "sender_id": message.sender_id,
+        "sender_name": message.sender.name if message.sender else "",
+        "content": message.content,
+        "created_at": message.created_at.isoformat() if message.created_at else None,
+        "is_read": bool(message.is_read),
+    }
+
+
+def serialize_support_ticket(ticket):
+    return {
+        "id": ticket.id,
+        "category": ticket.category,
+        "subject": ticket.subject,
+        "related_skill": ticket.related_skill or "",
+        "related_location": ticket.related_location or "",
+        "description": ticket.description,
+        "status": ticket.status,
+        "created_at": ticket.created_at.isoformat() if ticket.created_at else None,
+        "updated_at": ticket.updated_at.isoformat() if ticket.updated_at else None,
+        "user": {
+            "id": ticket.user.id,
+            "name": ticket.user.name,
+            "email": ticket.user.email,
+        }
+        if ticket.user
+        else None,
+    }
+
+
+def get_current_user_connections():
+    return Connection.query.filter(
+        Connection.is_active.is_(True),
+        or_(Connection.user1_id == current_user.id, Connection.user2_id == current_user.id),
+    ).order_by(Connection.created_at.desc())
+
+
+def _ranked_matches(query, term):
+    normalized_term = term.casefold()
+
+    def score_for(value):
+        val = (value or "").casefold()
+        if val == normalized_term:
+            return (0, len(val))
+        if val.startswith(normalized_term):
+            return (1, len(val))
+        if normalized_term in val:
+            return (2, len(val))
+        return (9, len(val))
+
+    return sorted(query, key=lambda item: score_for(item))
+
+
+def location_suggestions(query_text, limit=8):
+    term = clean_text(query_text, max_length=100)
+    if not term or len(term) < 2:
+        return []
+
+    term_cf = term.casefold()
+    matched = []
+    seen = set()
+    for item in LOCATION_SUGGESTIONS:
+        if item["country_code"] in EXCLUDED_LOCATION_COUNTRY_CODES:
+            continue
+        label = f'{item["city"]}, {item["country"]}'
+        if term_cf in label.casefold():
+            if label.casefold() in seen:
+                continue
+            seen.add(label.casefold())
+            matched.append(
+                {
+                    "value": item["city"],
+                    "label": label,
+                    "city": item["city"],
+                    "country": item["country"],
+                    "country_code": item["country_code"],
+                }
+            )
+    matched = _ranked_matches(matched, term)
+    return matched[:limit]
+
+
+def skill_suggestions(query_text, limit=8):
+    term = clean_text(query_text, max_length=100)
+    if not term or len(term) < 1:
+        return []
+
+    term_cf = term.casefold()
+    candidates = {skill.strip(): {"value": skill.strip(), "label": skill.strip()} for skill in BASE_SKILL_SUGGESTIONS}
+    for row in Skill.query.with_entities(Skill.skill_name).distinct().limit(500).all():
+        skill_name = (row[0] or "").strip()
+        if skill_name:
+            candidates.setdefault(skill_name, {"value": skill_name, "label": skill_name})
+
+    filtered = [item for item in candidates.values() if term_cf in item["label"].casefold()]
+    filtered = _ranked_matches(filtered, term)
+    return filtered[:limit]
+
+
+def get_trending_skills(limit=6):
+    rows = (
+        db.session.query(Skill.skill_name, func.count(Skill.id).label("count"))
+        .join(User, Skill.user_id == User.id)
+        .filter(Skill.type == "offered", User.is_public.is_(True))
+        .group_by(Skill.skill_name)
+        .order_by(func.count(Skill.id).desc(), Skill.skill_name.asc())
+        .limit(limit)
+        .all()
+    )
+    return [{"skill": skill_name, "count": count} for skill_name, count in rows]
+
+
+def get_personalized_recommendations(user, limit=6):
+    if not user or not getattr(user, "id", None):
+        return []
+
+    user_offered = (get_skill_value(user.id, "offered") or "").casefold()
+    user_wanted = (get_skill_value(user.id, "wanted") or "").casefold()
+    user_location = (user.location or "").casefold()
+    user_availability = user.availability or ""
+
+    rows = (
+        db.session.query(Skill, User)
+        .join(User, Skill.user_id == User.id)
+        .filter(Skill.type == "offered", User.is_public.is_(True), User.id != user.id)
+        .all()
+    )
+
+    recommendations = []
+    for skill, other in rows:
+        score = 0
+        offered = (skill.skill_name or "").casefold()
+        other_wanted = (get_skill_value(other.id, "wanted") or "").casefold()
+
+        if user_wanted and (user_wanted in offered or offered in user_wanted):
+            score += 5
+        if user_offered and other_wanted and (user_offered in other_wanted or other_wanted in user_offered):
+            score += 4
+        if user_location and other.location and user_location in other.location.casefold():
+            score += 2
+        if user_availability and other.availability and user_availability == other.availability:
+            score += 1
+
+        recommendations.append(
+            {
+                "user_id": other.id,
+                "name": other.name,
+                "location": other.location or "",
+                "availability": other.availability or "",
+                "skill": skill.skill_name,
+                "score": score,
+            }
+        )
+
+    recommendations.sort(key=lambda item: (-item["score"], item["name"].lower(), item["skill"].lower()))
+    deduped = []
+    seen = set()
+    for item in recommendations:
+        key = (item["user_id"], item["skill"])
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+        if len(deduped) >= limit:
+            break
+    return deduped
+
+
+def get_engagement_snapshot(user):
+    if not user or not getattr(user, "id", None):
+        return None
+
+    friends_count = get_current_user_connections().count()
+    pending_received = SwapRequest.query.filter_by(target_id=user.id, status="pending").count()
+    open_tickets = SupportTicket.query.filter(
+        SupportTicket.user_id == user.id,
+        SupportTicket.status.in_(["open", "in_progress"]),
+    ).count()
+    return {
+        "friends_count": friends_count,
+        "pending_received": pending_received,
+        "open_tickets": open_tickets,
+    }
+
+
+def serialize_swap_request(item, skill_lookup, connection_lookup=None):
     requester_skills = skill_lookup.get(item.requester_id, {})
     target_skills = skill_lookup.get(item.target_id, {})
+    connection_id = None
+    if connection_lookup:
+        pair = normalize_connection_pair(item.requester_id, item.target_id)
+        connection_id = connection_lookup.get(pair)
     return {
         "id": item.id,
         "status": item.status,
         "created_at": item.created_at.isoformat() if item.created_at else None,
+        "connection_id": connection_id,
         "requester": {
             "id": item.requester.id,
             "name": item.requester.name,
@@ -259,7 +733,19 @@ def serialize_swap_request(item, skill_lookup):
 
 @app.route("/")
 def home():
-    return render_template("index.html")
+    recommended_matches = []
+    trending_skills = get_trending_skills(limit=6)
+    engagement_snapshot = None
+    if current_user.is_authenticated:
+        recommended_matches = get_personalized_recommendations(current_user, limit=6)
+        engagement_snapshot = get_engagement_snapshot(current_user)
+
+    return render_template(
+        "index.html",
+        recommended_matches=recommended_matches,
+        trending_skills=trending_skills,
+        engagement_snapshot=engagement_snapshot,
+    )
 
 
 @app.route("/health", methods=["GET"])
@@ -345,14 +831,17 @@ def profile_page():
 @app.route("/api/get_profile", methods=["GET"])
 @login_required
 def get_profile():
+    offered_skill = get_skill_value(current_user.id, "offered")
+    wanted_skill = get_skill_value(current_user.id, "wanted")
     return jsonify(
         {
             "name": current_user.name or "",
             "location": current_user.location or "",
             "availability": current_user.availability or "anytime",
             "visibility": "public" if current_user.is_public else "private",
-            "skills_offered": get_skill_value(current_user.id, "offered"),
-            "skills_wanted": get_skill_value(current_user.id, "wanted"),
+            "skills_offered": offered_skill,
+            "skills_wanted": wanted_skill,
+            "has_profile": bool(offered_skill and wanted_skill),
         }
     )
 
@@ -363,6 +852,8 @@ def update_profile():
     data = get_json_body()
     if data is None:
         return json_error("Invalid JSON payload.", 400)
+
+    had_profile = has_configured_profile(current_user.id)
 
     name = clean_text(data.get("name"), max_length=80)
     location = clean_text(data.get("location"), max_length=100, allow_blank=True) or ""
@@ -389,7 +880,8 @@ def update_profile():
     set_skill_value(current_user.id, "wanted", skills_wanted)
 
     db.session.commit()
-    return jsonify({"message": "Profile updated successfully!"})
+    action = "updated" if had_profile else "created"
+    return jsonify({"message": f"Profile {action} successfully!", "action": action})
 
 
 @app.route("/browse")
@@ -527,6 +1019,12 @@ def respond_swap(request_id):
             return json_error("Only the target user can respond to this request.", 403)
 
     swap_request.status = requested_status
+    if requested_status == "accepted":
+        create_connection_if_missing(
+            swap_request.requester_id,
+            swap_request.target_id,
+            source_swap_request_id=swap_request.id,
+        )
     db.session.commit()
     return jsonify({"message": f"Swap request {requested_status} successfully!"})
 
@@ -550,13 +1048,154 @@ def get_swap_requests():
         all_user_ids.add(item.requester_id)
         all_user_ids.add(item.target_id)
     skill_lookup = user_skill_map(all_user_ids)
+    connection_lookup = {}
+    if sent or received:
+        involved_pairs = {normalize_connection_pair(item.requester_id, item.target_id) for item in sent + received}
+        user_ids_flat = {uid for pair in involved_pairs for uid in pair}
+        connection_rows = Connection.query.filter(
+            Connection.is_active.is_(True),
+            Connection.user1_id.in_(user_ids_flat),
+            Connection.user2_id.in_(user_ids_flat),
+        ).all()
+        for connection in connection_rows:
+            connection_lookup[(connection.user1_id, connection.user2_id)] = connection.id
 
     return jsonify(
         {
-            "sent": [serialize_swap_request(item, skill_lookup) for item in sent],
-            "received": [serialize_swap_request(item, skill_lookup) for item in received],
+            "sent": [serialize_swap_request(item, skill_lookup, connection_lookup) for item in sent],
+            "received": [serialize_swap_request(item, skill_lookup, connection_lookup) for item in received],
         }
     )
+
+
+@app.route("/friends")
+@login_required
+def friends_page():
+    return render_template("friends.html")
+
+
+@app.route("/api/friends", methods=["GET"])
+@login_required
+def get_friends():
+    connections = get_current_user_connections().all()
+    user_ids = {current_user.id}
+    for connection in connections:
+        user_ids.update([connection.user1_id, connection.user2_id])
+    skill_lookup = user_skill_map(user_ids)
+
+    items = []
+    for connection in connections:
+        serialized = serialize_connection(connection, viewer_id=current_user.id, skill_lookup=skill_lookup)
+        if serialized:
+            items.append(serialized)
+    return jsonify({"items": items})
+
+
+@app.route("/chat/<int:connection_id>")
+@login_required
+def chat_page(connection_id):
+    connection = db.session.get(Connection, connection_id)
+    if not connection or not connection.is_active:
+        return redirect(url_for("friends_page"))
+    if not user_is_connection_participant(connection, current_user.id):
+        return redirect(url_for("friends_page"))
+
+    friend = get_other_connection_user(connection, current_user.id)
+    return render_template("chat.html", connection=connection, friend=friend)
+
+
+@app.route("/api/chat/<int:connection_id>/messages", methods=["GET", "POST"])
+@login_required
+def chat_messages(connection_id):
+    connection = db.session.get(Connection, connection_id)
+    if not connection or not connection.is_active:
+        return json_error("Chat not found.", 404)
+    if not user_is_connection_participant(connection, current_user.id):
+        return json_error("You are not allowed to access this chat.", 403)
+
+    if request.method == "GET":
+        limit = parse_positive_int(request.args.get("limit"), 100, minimum=1, maximum=300)
+        after_id = parse_positive_int(request.args.get("after_id"), 0, minimum=0)
+        q = Message.query.filter_by(connection_id=connection.id).order_by(Message.id.asc())
+        if after_id > 0:
+            q = q.filter(Message.id > after_id)
+        messages = q.limit(limit).all()
+        return jsonify({"items": [serialize_message(msg) for msg in messages]})
+
+    data = get_json_body()
+    if data is None:
+        return json_error("Invalid JSON payload.", 400)
+
+    content = clean_text(data.get("content"), max_length=1000)
+    if not content:
+        return json_error("Message content is required.", 400)
+
+    message = Message(connection_id=connection.id, sender_id=current_user.id, content=content)
+    db.session.add(message)
+    db.session.commit()
+    return jsonify({"message": "Message sent successfully!", "item": serialize_message(message)}), 201
+
+
+@app.route("/support")
+@login_required
+def support_page():
+    return render_template("support.html")
+
+
+@app.route("/api/support_tickets", methods=["GET", "POST"])
+@login_required
+def support_tickets():
+    if request.method == "GET":
+        tickets = (
+            SupportTicket.query.filter_by(user_id=current_user.id)
+            .order_by(SupportTicket.created_at.desc())
+            .all()
+        )
+        return jsonify({"items": [serialize_support_ticket(ticket) for ticket in tickets]})
+
+    data = get_json_body()
+    if data is None:
+        return json_error("Invalid JSON payload.", 400)
+
+    category = clean_text(data.get("category"), max_length=30) or "other"
+    subject = clean_text(data.get("subject"), max_length=120)
+    related_skill = clean_text(data.get("related_skill"), max_length=100, allow_blank=True) or ""
+    related_location = clean_text(data.get("related_location"), max_length=100, allow_blank=True) or ""
+    description = clean_text(data.get("description"), max_length=2000)
+
+    if category not in VALID_SUPPORT_CATEGORIES:
+        return json_error("Invalid support category.", 400)
+    if not subject:
+        return json_error("Subject is required.", 400)
+    if not description:
+        return json_error("Description is required.", 400)
+
+    ticket = SupportTicket(
+        user_id=current_user.id,
+        category=category,
+        subject=subject,
+        related_skill=related_skill,
+        related_location=related_location,
+        description=description,
+        status="open",
+    )
+    db.session.add(ticket)
+    db.session.commit()
+    return jsonify({"message": "Query submitted successfully!", "item": serialize_support_ticket(ticket)}), 201
+
+
+@app.route("/api/suggestions/locations", methods=["GET"])
+def suggest_locations():
+    limit = parse_positive_int(request.args.get("limit"), 8, minimum=1, maximum=20)
+    q = request.args.get("q")
+    return jsonify({"items": location_suggestions(q, limit=limit)})
+
+
+@app.route("/api/suggestions/skills", methods=["GET"])
+def suggest_skills():
+    limit = parse_positive_int(request.args.get("limit"), 8, minimum=1, maximum=20)
+    q = request.args.get("q")
+    return jsonify({"items": skill_suggestions(q, limit=limit)})
 
 
 @app.route("/swap-requests")

@@ -19,11 +19,11 @@
       <div class="field-row">
         <div class="field" style="margin-bottom:0;">
           <label for="searchInput">Search</label>
-          <input type="text" id="searchInput" placeholder="Skill or name" />
+          <input type="text" id="searchInput" placeholder="Skill or name" data-suggest-type="skill" />
         </div>
         <div class="field" style="margin-bottom:0;">
           <label for="locationInput">Location</label>
-          <input type="text" id="locationInput" placeholder="City or area" />
+          <input type="text" id="locationInput" placeholder="City or area" data-suggest-type="location" />
         </div>
       </div>
 
@@ -52,6 +52,8 @@
         <button class="btn btn-primary" type="submit">Apply Filters</button>
         <button class="btn btn-outline" type="button" id="resetBrowseFiltersBtn">Reset</button>
         <a class="btn btn-soft" href="{{ url_for('profile_page') }}">Update My Profile</a>
+        <a class="btn btn-outline" href="{{ url_for('friends_page') }}">Friends</a>
+        <a class="btn btn-outline" href="{{ url_for('support_page') }}">Support</a>
       </div>
     </form>
 
@@ -337,6 +339,9 @@
   });
 
   window.addEventListener("load", () => {
+    if (window.skillSwap?.setupAutocompletes) {
+      window.skillSwap.setupAutocompletes(browseFiltersForm);
+    }
     syncInputsFromState();
     loadSkills();
   });
