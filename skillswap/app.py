@@ -43,12 +43,21 @@ def env_int(name, default):
         return default
 
 
+def normalize_database_url(url):
+    # Some platforms still provide postgres:// which SQLAlchemy 2 rejects.
+    if url and url.startswith("postgres://"):
+        return "postgresql://" + url[len("postgres://") :]
+    return url
+
+
 app = Flask(__name__)
 
 APP_ENV = os.getenv("APP_ENV", os.getenv("FLASK_ENV", "development")).strip().lower()
 IS_PRODUCTION = APP_ENV == "production"
 
-app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL", "sqlite:///skill_swap.db")
+app.config["SQLALCHEMY_DATABASE_URI"] = normalize_database_url(
+    os.getenv("DATABASE_URL", "sqlite:///skill_swap.db")
+)
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-me")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["JSON_SORT_KEYS"] = False
@@ -251,6 +260,11 @@ def serialize_swap_request(item, skill_lookup):
 @app.route("/")
 def home():
     return render_template("index.html")
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"}), 200
 
 
 @app.route("/login", methods=["GET"])
@@ -551,12 +565,19 @@ def swap_requests_page():
     return render_template("swap-requests.html")
 
 
-if __name__ == "__main__":
+def ensure_db_tables():
+    """Create tables on startup so gunicorn/Railway works like local runs."""
     with app.app_context():
         db.create_all()
 
+
+# Ensure tables exist even when app is started via gunicorn (Railway), not __main__.
+ensure_db_tables()
+
+
+if __name__ == "__main__":
     app.run(
         host=app.config["APP_HOST"],
-        port=app.config["APP_PORT"],
+        port=int(os.getenv("PORT", app.config["APP_PORT"])),
         debug=bool(app.config["DEBUG"]),
     )
