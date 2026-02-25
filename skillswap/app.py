@@ -2,7 +2,11 @@ import os
 import re
 from datetime import datetime
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:  # Allows app startup even if python-dotenv is missing locally.
+    def load_dotenv(*_args, **_kwargs):
+        return False
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 from flask_bcrypt import Bcrypt
 from flask_login import (
