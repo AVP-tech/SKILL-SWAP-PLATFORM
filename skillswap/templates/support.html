@@ -100,6 +100,20 @@
     return d.toLocaleString();
   }
 
+  function ticketActionButtons(ticket) {
+    const status = (ticket?.status || "open").toLowerCase();
+    const buttons = [];
+
+    if (status === "open" || status === "in_progress") {
+      buttons.push(`<button class="btn btn-soft btn-sm" type="button" data-ticket-action="resolved" data-ticket-id="${ticket.id}">Mark Resolved</button>`);
+      buttons.push(`<button class="btn btn-outline btn-sm" type="button" data-ticket-action="closed" data-ticket-id="${ticket.id}">Close</button>`);
+    } else {
+      buttons.push(`<button class="btn btn-outline btn-sm" type="button" data-ticket-action="open" data-ticket-id="${ticket.id}">Reopen</button>`);
+    }
+
+    return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">${buttons.join("")}</div>`;
+  }
+
   function renderTickets(items) {
     ticketsCountPill.textContent = `${items.length} ticket${items.length === 1 ? "" : "s"}`;
     ticketsContainer.innerHTML = "";
@@ -122,9 +136,33 @@
         ${ticket.related_location ? `<p class="muted" style="margin-top:4px;">Related Location: ${escapeHtml(ticket.related_location)}</p>` : ""}
         <p style="margin-top:8px; white-space:pre-wrap;">${escapeHtml(ticket.description || "")}</p>
         <p class="muted" style="margin-top:8px; font-size:0.82rem;">Created: ${escapeHtml(formatDate(ticket.created_at))}</p>
+        ${ticketActionButtons(ticket)}
       `;
       ticketsContainer.appendChild(card);
     });
+  }
+
+  async function updateTicketStatus(ticketId, status) {
+    if (!ticketId || !status) return;
+
+    showSupportStatus("Updating query status...", "info");
+    try {
+      const res = await fetch(`/api/support_tickets/${ticketId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Could not update query status.");
+
+      showSupportStatus(data.message || "Query status updated.", "success");
+      if (window.skillSwap?.showToast) window.skillSwap.showToast("Query status updated", "success");
+      await loadTickets();
+    } catch (err) {
+      console.error(err);
+      showSupportStatus(err.message || "Could not update query status.", "error");
+      if (window.skillSwap?.showToast) window.skillSwap.showToast(err.message || "Could not update query status.", "error");
+    }
   }
 
   async function loadTickets() {
@@ -191,6 +229,15 @@
   });
 
   reloadTicketsBtn.addEventListener("click", loadTickets);
+
+  ticketsContainer.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-ticket-action]");
+    if (!btn) return;
+    const ticketId = Number(btn.dataset.ticketId);
+    const nextStatus = btn.dataset.ticketAction;
+    if (!ticketId || !nextStatus) return;
+    updateTicketStatus(ticketId, nextStatus);
+  });
 
   window.addEventListener("load", () => {
     if (window.skillSwap?.setupAutocompletes) {

@@ -699,6 +699,67 @@ def get_engagement_snapshot(user):
     }
 
 
+def get_achievement_badges(user, limit=6):
+    if not user or not getattr(user, "id", None):
+        return []
+
+    offered = get_skill_value(user.id, "offered")
+    wanted = get_skill_value(user.id, "wanted")
+    has_profile = bool((user.location or "").strip() and offered and wanted)
+
+    sent_requests = SwapRequest.query.filter_by(requester_id=user.id).count()
+    accepted_requests = SwapRequest.query.filter(
+        SwapRequest.status == "accepted",
+        or_(SwapRequest.requester_id == user.id, SwapRequest.target_id == user.id),
+    ).count()
+    friends_count = get_current_user_connections().count()
+    messages_sent = Message.query.filter_by(sender_id=user.id).count()
+    tickets_count = SupportTicket.query.filter_by(user_id=user.id).count()
+
+    badge_specs = [
+        {
+            "id": "profile_builder",
+            "title": "Profile Builder",
+            "description": "Complete location + offered/wanted skills.",
+            "earned": has_profile,
+        },
+        {
+            "id": "first_request",
+            "title": "First Outreach",
+            "description": "Send your first skill swap request.",
+            "earned": sent_requests >= 1,
+        },
+        {
+            "id": "collaborator",
+            "title": "Collaborator",
+            "description": "Get a swap request accepted.",
+            "earned": accepted_requests >= 1,
+        },
+        {
+            "id": "networker",
+            "title": "Network Builder",
+            "description": "Create 3 friend connections.",
+            "earned": friends_count >= 3,
+        },
+        {
+            "id": "conversation_starter",
+            "title": "Conversation Starter",
+            "description": "Send 5 chat messages.",
+            "earned": messages_sent >= 5,
+        },
+        {
+            "id": "feedback_loop",
+            "title": "Feedback Loop",
+            "description": "Use support/query at least once.",
+            "earned": tickets_count >= 1,
+        },
+    ]
+
+    earned_badges = [badge for badge in badge_specs if badge["earned"]]
+    locked_badges = [badge for badge in badge_specs if not badge["earned"]]
+    return (earned_badges + locked_badges)[: max(1, limit)]
+
+
 def serialize_swap_request(item, skill_lookup, connection_lookup=None):
     requester_skills = skill_lookup.get(item.requester_id, {})
     target_skills = skill_lookup.get(item.target_id, {})
@@ -736,15 +797,18 @@ def home():
     recommended_matches = []
     trending_skills = get_trending_skills(limit=6)
     engagement_snapshot = None
+    achievement_badges = []
     if current_user.is_authenticated:
         recommended_matches = get_personalized_recommendations(current_user, limit=6)
         engagement_snapshot = get_engagement_snapshot(current_user)
+        achievement_badges = get_achievement_badges(current_user, limit=6)
 
     return render_template(
         "index.html",
         recommended_matches=recommended_matches,
         trending_skills=trending_skills,
         engagement_snapshot=engagement_snapshot,
+        achievement_badges=achievement_badges,
     )
 
 
@@ -1182,6 +1246,36 @@ def support_tickets():
     db.session.add(ticket)
     db.session.commit()
     return jsonify({"message": "Query submitted successfully!", "item": serialize_support_ticket(ticket)}), 201
+
+
+@app.route("/api/support_tickets/<int:ticket_id>", methods=["PATCH"])
+@login_required
+def update_support_ticket(ticket_id):
+    ticket = db.session.get(SupportTicket, ticket_id)
+    if not ticket or ticket.user_id != current_user.id:
+        return json_error("Support ticket not found.", 404)
+
+    data = get_json_body()
+    if data is None:
+        return json_error("Invalid JSON payload.", 400)
+
+    next_status = clean_text(data.get("status"), max_length=20)
+    if next_status not in VALID_SUPPORT_STATUSES:
+        return json_error("Invalid support status.", 400)
+
+    # Keep user actions simple: they can reopen or mark their own ticket resolved/closed.
+    allowed_user_statuses = {"open", "resolved", "closed"}
+    if next_status not in allowed_user_statuses:
+        return json_error("This status can only be set by support staff.", 403)
+
+    ticket.status = next_status
+    db.session.commit()
+    return jsonify(
+        {
+            "message": f"Query marked as {next_status.replace('_', ' ')}.",
+            "item": serialize_support_ticket(ticket),
+        }
+    )
 
 
 @app.route("/api/suggestions/locations", methods=["GET"])
