@@ -1,5 +1,6 @@
 import os
 import re
+import unicodedata
 from datetime import datetime
 
 try:
@@ -238,6 +239,295 @@ BASE_SKILL_SUGGESTIONS = [
     "C++",
     "Leadership",
 ]
+
+EXTRA_SKILL_SUGGESTIONS = [
+    # Programming / Software
+    "TypeScript",
+    "HTML",
+    "CSS",
+    "Tailwind CSS",
+    "Bootstrap",
+    "SASS",
+    "Next.js",
+    "Vue.js",
+    "Angular",
+    "Svelte",
+    "Redux",
+    "React Native",
+    "Flutter",
+    "Kotlin",
+    "Swift",
+    "Android Development",
+    "iOS Development",
+    "Go",
+    "Rust",
+    "C",
+    "C#",
+    ".NET",
+    "ASP.NET",
+    "Spring Boot",
+    "PHP",
+    "Laravel",
+    "Ruby",
+    "Ruby on Rails",
+    "Elixir",
+    "FastAPI",
+    "API Design",
+    "REST APIs",
+    "GraphQL",
+    "Microservices",
+    "System Design",
+    "OOP",
+    "Data Structures",
+    "Algorithms",
+    "Competitive Programming",
+    "Object-Oriented Design",
+    "Design Patterns",
+    "Unit Testing",
+    "Integration Testing",
+    "Test Automation",
+    "Selenium",
+    "Cypress",
+    "Playwright",
+    "Jest",
+    "Pytest",
+    "Debugging",
+    "Performance Optimization",
+    "Code Review",
+    "Open Source Contribution",
+    # Data / AI / Analytics
+    "NumPy",
+    "Pandas",
+    "Matplotlib",
+    "Seaborn",
+    "Scikit-learn",
+    "TensorFlow",
+    "PyTorch",
+    "Deep Learning",
+    "NLP",
+    "Computer Vision",
+    "Data Visualization",
+    "Statistics",
+    "Probability",
+    "A/B Testing",
+    "Business Analytics",
+    "ETL",
+    "Data Engineering",
+    "Big Data",
+    "Spark",
+    "Hadoop",
+    "Tableau",
+    "Looker Studio",
+    "Excel Automation",
+    "Google Sheets",
+    "Power Query",
+    "Data Cleaning",
+    "Prompt Engineering",
+    "LLM Application Development",
+    "AI Automation",
+    # Cloud / DevOps / Infra
+    "Git",
+    "GitHub",
+    "GitLab",
+    "Linux",
+    "Shell Scripting",
+    "Bash",
+    "Docker",
+    "Kubernetes",
+    "CI/CD",
+    "Jenkins",
+    "GitHub Actions",
+    "Terraform",
+    "Ansible",
+    "AWS",
+    "Microsoft Azure",
+    "Google Cloud",
+    "Cloud Architecture",
+    "Server Administration",
+    "Nginx",
+    "Apache Server",
+    "Monitoring",
+    "Prometheus",
+    "Grafana",
+    "Cybersecurity Basics",
+    "Network Security",
+    "Ethical Hacking",
+    "Penetration Testing",
+    # Databases
+    "PostgreSQL",
+    "MySQL",
+    "SQLite",
+    "MongoDB",
+    "Redis",
+    "Database Design",
+    "Database Administration",
+    "Query Optimization",
+    "Firebase",
+    "Supabase",
+    # Product / Design / UX
+    "Product Management",
+    "Product Strategy",
+    "User Research",
+    "Wireframing",
+    "Prototyping",
+    "Interaction Design",
+    "Visual Design",
+    "Typography",
+    "Color Theory",
+    "Illustration",
+    "Brand Design",
+    "Logo Design",
+    "Presentation Design",
+    "Motion Graphics",
+    "Adobe Illustrator",
+    "Adobe XD",
+    "After Effects",
+    "Premiere Pro",
+    "Blender",
+    "3D Modeling",
+    "Animation",
+    # Marketing / Sales / Growth
+    "SEM",
+    "Google Ads",
+    "Meta Ads",
+    "Email Marketing",
+    "Copywriting",
+    "Conversion Optimization",
+    "Marketing Analytics",
+    "Brand Strategy",
+    "Market Research",
+    "Influencer Marketing",
+    "Affiliate Marketing",
+    "Lead Generation",
+    "Sales",
+    "Cold Emailing",
+    "CRM",
+    "Customer Success",
+    "Community Building",
+    # Business / Finance / Ops
+    "Accounting Basics",
+    "Bookkeeping",
+    "Financial Modeling",
+    "Corporate Finance",
+    "Personal Finance",
+    "Investing Basics",
+    "Stock Market Basics",
+    "Startup Fundamentals",
+    "Business Strategy",
+    "Operations Management",
+    "Project Management",
+    "Agile",
+    "Scrum",
+    "Kanban",
+    "Negotiation",
+    "Business Communication",
+    # Content / Media
+    "Script Writing",
+    "Storytelling",
+    "Blog Writing",
+    "Technical Writing",
+    "Creative Writing",
+    "Editing",
+    "Proofreading",
+    "Podcasting",
+    "Voice Over",
+    "Content Strategy",
+    "Content Calendar Planning",
+    "YouTube Growth",
+    "Short-form Video Editing",
+    "Reels Editing",
+    "Thumbnail Design",
+    # Languages / Communication
+    "English Speaking",
+    "English Writing",
+    "Hindi Speaking",
+    "Spanish",
+    "French",
+    "German",
+    "Japanese",
+    "Korean",
+    "Chinese (Mandarin)",
+    "Arabic",
+    "Translation",
+    "Accent Training",
+    "Debate",
+    "Presentation Skills",
+    "Interview Skills",
+    "Confidence Building",
+    # Career / Education
+    "Career Guidance",
+    "Portfolio Building",
+    "LinkedIn Optimization",
+    "Networking",
+    "Time Management",
+    "Study Skills",
+    "Exam Preparation",
+    "Mathematics",
+    "Physics",
+    "Chemistry",
+    "Biology",
+    "Economics",
+    "History",
+    "Geography",
+    # Creative / Music / Art
+    "Music Production",
+    "Beat Making",
+    "Songwriting",
+    "Music Theory",
+    "Drums",
+    "Violin",
+    "Keyboard",
+    "Ukulele",
+    "Drawing",
+    "Sketching",
+    "Painting",
+    "Watercolor",
+    "Calligraphy",
+    "Crafts",
+    "Origami",
+    # Lifestyle / Wellness / Fitness
+    "Yoga",
+    "Meditation",
+    "Breathing Exercises",
+    "Fitness Training",
+    "Strength Training",
+    "Bodyweight Training",
+    "Running",
+    "Nutrition Basics",
+    "Meal Planning",
+    "Healthy Cooking",
+    "Mindfulness",
+    # Home / Practical Skills
+    "Cooking",
+    "Baking",
+    "Barista Skills",
+    "Gardening",
+    "Home Organization",
+    "Interior Styling",
+    "DIY Repairs",
+    "Basic Electrical Repairs",
+    "Basic Plumbing",
+    "Car Maintenance Basics",
+    # Trade / Professional Services
+    "AutoCAD",
+    "Civil Engineering Basics",
+    "Mechanical Design Basics",
+    "Electronics Basics",
+    "PCB Design Basics",
+    "Robotics Basics",
+    "IoT Basics",
+    "Arduino",
+    "Raspberry Pi",
+    # Social / Community
+    "Event Planning",
+    "Volunteering Coordination",
+    "Conflict Resolution",
+    "Team Management",
+    "Mentoring",
+    "Coaching",
+]
+
+BASE_SKILL_SUGGESTIONS = list(dict.fromkeys(BASE_SKILL_SUGGESTIONS + EXTRA_SKILL_SUGGESTIONS))
 
 
 # ---------------- MODELS ----------------
@@ -574,53 +864,100 @@ def get_current_user_connections():
 
 
 def _ranked_matches(query, term):
-    normalized_term = term.casefold()
-
     def value_text(value):
         if isinstance(value, dict):
             raw = value.get("label") or value.get("value") or ""
             return str(raw)
         return str(value or "")
 
-    def score_for(value):
-        val = value_text(value).casefold()
-        if val == normalized_term:
-            return (0, len(val))
-        if val.startswith(normalized_term):
-            return (1, len(val))
-        if normalized_term in val:
-            return (2, len(val))
-        return (9, len(val))
+    def normalize_text(text):
+        folded = unicodedata.normalize("NFKD", str(text or ""))
+        stripped = "".join(ch for ch in folded if not unicodedata.combining(ch))
+        lowered = stripped.casefold()
+        lowered = re.sub(r"[^a-z0-9]+", " ", lowered)
+        return re.sub(r"\s+", " ", lowered).strip()
 
-    return sorted(query, key=lambda item: score_for(item))
+    def tokenize(text):
+        normalized = normalize_text(text)
+        return normalized.split() if normalized else []
+
+    def ordered_prefix_match(candidate_tokens, query_tokens):
+        if not query_tokens:
+            return False
+        pos = 0
+        for q_token in query_tokens:
+            found = False
+            while pos < len(candidate_tokens):
+                if candidate_tokens[pos].startswith(q_token):
+                    found = True
+                    pos += 1
+                    break
+                pos += 1
+            if not found:
+                return False
+        return True
+
+    normalized_term = normalize_text(term)
+    query_tokens = tokenize(term)
+    if not normalized_term:
+        return []
+
+    def score_for(value):
+        raw_text = value_text(value)
+        normalized_value = normalize_text(raw_text)
+        if not normalized_value:
+            return None
+
+        candidate_tokens = normalized_value.split()
+
+        if normalized_value == normalized_term:
+            return (0, len(normalized_value), raw_text.casefold())
+        if normalized_value.startswith(normalized_term):
+            return (1, len(normalized_value), raw_text.casefold())
+        if query_tokens and ordered_prefix_match(candidate_tokens, query_tokens):
+            return (2, len(candidate_tokens), len(normalized_value), raw_text.casefold())
+        if any(token.startswith(normalized_term) for token in candidate_tokens):
+            return (3, len(candidate_tokens), len(normalized_value), raw_text.casefold())
+        # For very short queries, avoid noisy substring matches.
+        if len(normalized_term) >= 3 and normalized_term in normalized_value:
+            return (4, len(normalized_value), raw_text.casefold())
+        return None
+
+    ranked = []
+    for item in query:
+        score = score_for(item)
+        if score is None:
+            continue
+        ranked.append((score, item))
+
+    ranked.sort(key=lambda pair: pair[0])
+    return [item for _, item in ranked]
 
 
 def location_suggestions(query_text, limit=8):
     term = clean_text(query_text, max_length=100)
-    if not term or len(term) < 2:
+    if not term or len(term) < 1:
         return []
 
-    term_cf = term.casefold()
-    matched = []
+    candidates = []
     seen = set()
     for item in LOCATION_SUGGESTIONS:
         if item["country_code"] in EXCLUDED_LOCATION_COUNTRY_CODES:
             continue
         label = f'{item["city"]}, {item["country"]}'
-        if term_cf in label.casefold():
-            if label.casefold() in seen:
-                continue
-            seen.add(label.casefold())
-            matched.append(
-                {
-                    "value": item["city"],
-                    "label": label,
-                    "city": item["city"],
-                    "country": item["country"],
-                    "country_code": item["country_code"],
-                }
-            )
-    matched = _ranked_matches(matched, term)
+        if label.casefold() in seen:
+            continue
+        seen.add(label.casefold())
+        candidates.append(
+            {
+                "value": item["city"],
+                "label": label,
+                "city": item["city"],
+                "country": item["country"],
+                "country_code": item["country_code"],
+            }
+        )
+    matched = _ranked_matches(candidates, term)
     return matched[:limit]
 
 
@@ -629,15 +966,13 @@ def skill_suggestions(query_text, limit=8):
     if not term or len(term) < 1:
         return []
 
-    term_cf = term.casefold()
     candidates = {skill.strip(): {"value": skill.strip(), "label": skill.strip()} for skill in BASE_SKILL_SUGGESTIONS}
     for row in Skill.query.with_entities(Skill.skill_name).distinct().limit(500).all():
         skill_name = (row[0] or "").strip()
         if skill_name:
             candidates.setdefault(skill_name, {"value": skill_name, "label": skill_name})
 
-    filtered = [item for item in candidates.values() if term_cf in item["label"].casefold()]
-    filtered = _ranked_matches(filtered, term)
+    filtered = _ranked_matches(list(candidates.values()), term)
     return filtered[:limit]
 
 
