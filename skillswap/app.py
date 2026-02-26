@@ -95,6 +95,11 @@ VALID_SUPPORT_CATEGORIES = {
     "other",
 }
 VALID_SUPPORT_STATUSES = {"open", "in_progress", "resolved", "closed"}
+ADMIN_EMAILS = {
+    email.strip().casefold()
+    for email in os.getenv("ADMIN_EMAILS", "").replace(";", ",").split(",")
+    if email.strip()
+}
 
 # Starter global city dataset for autocomplete (PK and BD excluded by rule).
 LOCATION_SUGGESTIONS = [
@@ -351,7 +356,10 @@ def unauthorized_handler():
 
 @app.context_processor
 def inject_template_helpers():
-    return {"csrf_token": generate_csrf}
+    return {
+        "csrf_token": generate_csrf,
+        "is_admin_viewer": current_user.is_authenticated and is_admin_user(current_user),
+    }
 
 
 @app.errorhandler(CSRFError)
@@ -381,6 +389,20 @@ def clean_text(value, *, max_length=None, allow_blank=False):
     if max_length is not None:
         text = text[:max_length]
     return text
+
+
+def is_admin_user(user):
+    if not user or not getattr(user, "email", None):
+        return False
+    return user.email.strip().casefold() in ADMIN_EMAILS
+
+
+def require_admin_access():
+    if is_admin_user(current_user):
+        return None
+    if request.path.startswith("/api/"):
+        return json_error("Admin access required.", 403)
+    return redirect(url_for("home"))
 
 
 def parse_positive_int(value, default, *, minimum=1, maximum=None):
@@ -554,8 +576,14 @@ def get_current_user_connections():
 def _ranked_matches(query, term):
     normalized_term = term.casefold()
 
+    def value_text(value):
+        if isinstance(value, dict):
+            raw = value.get("label") or value.get("value") or ""
+            return str(raw)
+        return str(value or "")
+
     def score_for(value):
-        val = (value or "").casefold()
+        val = value_text(value).casefold()
         if val == normalized_term:
             return (0, len(val))
         if val.startswith(normalized_term):
@@ -1206,6 +1234,15 @@ def support_page():
     return render_template("support.html")
 
 
+@app.route("/admin/support")
+@login_required
+def admin_support_page():
+    blocked = require_admin_access()
+    if blocked:
+        return blocked
+    return render_template("admin-support.html")
+
+
 @app.route("/api/support_tickets", methods=["GET", "POST"])
 @login_required
 def support_tickets():
@@ -1246,6 +1283,88 @@ def support_tickets():
     db.session.add(ticket)
     db.session.commit()
     return jsonify({"message": "Query submitted successfully!", "item": serialize_support_ticket(ticket)}), 201
+
+
+@app.route("/api/admin/support_tickets", methods=["GET"])
+@login_required
+def admin_support_tickets():
+    blocked = require_admin_access()
+    if blocked:
+        return blocked
+
+    status = clean_text(request.args.get("status"), max_length=20, allow_blank=True)
+    query_text = clean_text(request.args.get("query"), max_length=100, allow_blank=True)
+    limit = parse_positive_int(request.args.get("limit"), 100, minimum=1, maximum=500)
+
+    tickets_query = SupportTicket.query.join(User).order_by(
+        SupportTicket.updated_at.desc(), SupportTicket.created_at.desc()
+    )
+    if status and status != "all":
+        if status not in VALID_SUPPORT_STATUSES:
+            return json_error("Invalid support status filter.", 400)
+        tickets_query = tickets_query.filter(SupportTicket.status == status)
+
+    if query_text:
+        term = f"%{query_text}%"
+        tickets_query = tickets_query.filter(
+            or_(
+                SupportTicket.subject.ilike(term),
+                SupportTicket.description.ilike(term),
+                SupportTicket.related_skill.ilike(term),
+                SupportTicket.related_location.ilike(term),
+                User.name.ilike(term),
+                User.email.ilike(term),
+            )
+        )
+
+    tickets = tickets_query.limit(limit).all()
+
+    status_counts_rows = (
+        db.session.query(SupportTicket.status, func.count(SupportTicket.id))
+        .group_by(SupportTicket.status)
+        .all()
+    )
+    counts = {status_key: 0 for status_key in sorted(VALID_SUPPORT_STATUSES)}
+    total_count = 0
+    for status_key, count in status_counts_rows:
+        counts[status_key] = int(count)
+        total_count += int(count)
+
+    return jsonify(
+        {
+            "items": [serialize_support_ticket(ticket) for ticket in tickets],
+            "summary": {"total": total_count, "by_status": counts},
+        }
+    )
+
+
+@app.route("/api/admin/support_tickets/<int:ticket_id>", methods=["PATCH"])
+@login_required
+def admin_update_support_ticket(ticket_id):
+    blocked = require_admin_access()
+    if blocked:
+        return blocked
+
+    ticket = db.session.get(SupportTicket, ticket_id)
+    if not ticket:
+        return json_error("Support ticket not found.", 404)
+
+    data = get_json_body()
+    if data is None:
+        return json_error("Invalid JSON payload.", 400)
+
+    next_status = clean_text(data.get("status"), max_length=20)
+    if next_status not in VALID_SUPPORT_STATUSES:
+        return json_error("Invalid support status.", 400)
+
+    ticket.status = next_status
+    db.session.commit()
+    return jsonify(
+        {
+            "message": f"Ticket #{ticket.id} marked as {next_status.replace('_', ' ')}.",
+            "item": serialize_support_ticket(ticket),
+        }
+    )
 
 
 @app.route("/api/support_tickets/<int:ticket_id>", methods=["PATCH"])

@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="grid grid-2">
+  <section class="panel">
+    <div class="panel-body">
+      <div class="eyebrow">Admin Support</div>
+      <h2 style="margin-bottom:8px;">Support Ticket Desk</h2>
+      <p class="muted">Review all user queries, filter by status, and move tickets across the support workflow.</p>
+
+      <div id="adminSupportStatus" class="notice notice-info hidden" role="status" aria-live="polite" style="margin:12px 0;"></div>
+
+      <form id="adminSupportFilters">
+        <div class="field-row">
+          <div class="field">
+            <label for="adminTicketStatusFilter">Status</label>
+            <select id="adminTicketStatusFilter">
+              <option value="all">All</option>
+              <option value="open">Open</option>
+              <option value="in_progress">In Progress</option>
+              <option value="resolved">Resolved</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="adminTicketSearch">Search</label>
+            <input
+              type="text"
+              id="adminTicketSearch"
+              maxlength="100"
+              placeholder="Search user, subject, skill, location..."
+            />
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-primary" id="applyAdminFiltersBtn" type="submit">Apply Filters</button>
+          <button class="btn btn-outline" id="reloadAdminTicketsBtn" type="button">Refresh</button>
+        </div>
+      </form>
+
+      <div class="grid grid-3" style="margin-top:16px;">
+        <div class="card">
+          <h3>Total</h3>
+          <p id="adminTotalCount" style="font-size:1.6rem;font-weight:800;margin-top:6px;">0</p>
+        </div>
+        <div class="card">
+          <h3>Open/In Progress</h3>
+          <p id="adminOpenActiveCount" style="font-size:1.6rem;font-weight:800;margin-top:6px;">0</p>
+        </div>
+        <div class="card">
+          <h3>Resolved/Closed</h3>
+          <p id="adminResolvedCount" style="font-size:1.6rem;font-weight:800;margin-top:6px;">0</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-body">
+      <div class="section-head">
+        <h2>Tickets</h2>
+        <span class="pill" id="adminTicketCountPill">0 shown</span>
+      </div>
+      <div id="adminTicketsContainer" class="stack" aria-live="polite"></div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const adminSupportStatus = document.getElementById("adminSupportStatus");
+  const adminSupportFilters = document.getElementById("adminSupportFilters");
+  const adminTicketStatusFilter = document.getElementById("adminTicketStatusFilter");
+  const adminTicketSearch = document.getElementById("adminTicketSearch");
+  const applyAdminFiltersBtn = document.getElementById("applyAdminFiltersBtn");
+  const reloadAdminTicketsBtn = document.getElementById("reloadAdminTicketsBtn");
+  const adminTicketsContainer = document.getElementById("adminTicketsContainer");
+  const adminTicketCountPill = document.getElementById("adminTicketCountPill");
+  const adminTotalCount = document.getElementById("adminTotalCount");
+  const adminOpenActiveCount = document.getElementById("adminOpenActiveCount");
+  const adminResolvedCount = document.getElementById("adminResolvedCount");
+
+  function showAdminStatus(message, kind = "info") {
+    if (!message) {
+      adminSupportStatus.textContent = "";
+      adminSupportStatus.className = "notice notice-info hidden";
+      return;
+    }
+    adminSupportStatus.textContent = message;
+    adminSupportStatus.className = `notice notice-${kind}`;
+  }
+
+  function escapeHtml(value) {
+    const div = document.createElement("div");
+    div.textContent = value ?? "";
+    return div.innerHTML;
+  }
+
+  function prettyStatus(status) {
+    return (status || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  function formatDate(value) {
+    if (!value) return "";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleString();
+  }
+
+  function statusActionButtons(ticket) {
+    const statuses = ["open", "in_progress", "resolved", "closed"];
+    const buttons = statuses
+      .filter((status) => status !== ticket.status)
+      .map(
+        (status) =>
+          `<button type="button" class="btn btn-outline btn-sm" data-admin-ticket-id="${ticket.id}" data-admin-status="${status}">${escapeHtml(prettyStatus(status))}</button>`
+      );
+    return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">${buttons.join("")}</div>`;
+  }
+
+  function renderSummary(summary = {}) {
+    const byStatus = summary.by_status || {};
+    const total = Number(summary.total || 0);
+    const openActive = Number(byStatus.open || 0) + Number(byStatus.in_progress || 0);
+    const resolvedClosed = Number(byStatus.resolved || 0) + Number(byStatus.closed || 0);
+
+    adminTotalCount.textContent = String(total);
+    adminOpenActiveCount.textContent = String(openActive);
+    adminResolvedCount.textContent = String(resolvedClosed);
+  }
+
+  function renderTickets(items) {
+    adminTicketCountPill.textContent = `${items.length} shown`;
+    adminTicketsContainer.innerHTML = "";
+
+    if (!items.length) {
+      adminTicketsContainer.innerHTML = '<div class="card"><p class="muted">No tickets found for the current filter.</p></div>';
+      return;
+    }
+
+    items.forEach((ticket) => {
+      const card = document.createElement("article");
+      card.className = "card";
+      card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+          <div>
+            <h3>${escapeHtml(ticket.subject || "Untitled Query")}</h3>
+            <p class="muted" style="margin-top:4px;">#${ticket.id} • ${escapeHtml(ticket.user?.name || "Unknown User")} (${escapeHtml(ticket.user?.email || "unknown")})</p>
+          </div>
+          <span class="status-chip ${escapeHtml(ticket.status || "open")}">${escapeHtml(prettyStatus(ticket.status || "open"))}</span>
+        </div>
+        <p class="muted" style="margin-top:6px;">Category: ${escapeHtml(prettyStatus(ticket.category || "other"))}</p>
+        ${ticket.related_skill ? `<p class="muted" style="margin-top:4px;">Related Skill: ${escapeHtml(ticket.related_skill)}</p>` : ""}
+        ${ticket.related_location ? `<p class="muted" style="margin-top:4px;">Related Location: ${escapeHtml(ticket.related_location)}</p>` : ""}
+        <p style="margin-top:8px; white-space:pre-wrap;">${escapeHtml(ticket.description || "")}</p>
+        <p class="muted" style="margin-top:8px; font-size:0.82rem;">Updated: ${escapeHtml(formatDate(ticket.updated_at || ticket.created_at))}</p>
+        ${statusActionButtons(ticket)}
+      `;
+      adminTicketsContainer.appendChild(card);
+    });
+  }
+
+  async function loadAdminTickets() {
+    applyAdminFiltersBtn.disabled = true;
+    reloadAdminTicketsBtn.disabled = true;
+
+    const params = new URLSearchParams();
+    const status = adminTicketStatusFilter.value;
+    const query = adminTicketSearch.value.trim();
+    params.set("limit", "200");
+    if (status) params.set("status", status);
+    if (query) params.set("query", query);
+
+    showAdminStatus("Loading support tickets...", "info");
+    try {
+      const res = await fetch(`/api/admin/support_tickets?${params.toString()}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Could not load support tickets.");
+
+      const items = Array.isArray(data.items) ? data.items : [];
+      renderSummary(data.summary || {});
+      renderTickets(items);
+      showAdminStatus(`Loaded ${items.length} ticket(s).`, "success");
+    } catch (err) {
+      console.error(err);
+      renderTickets([]);
+      showAdminStatus(err.message || "Could not load support tickets.", "error");
+    } finally {
+      applyAdminFiltersBtn.disabled = false;
+      reloadAdminTicketsBtn.disabled = false;
+    }
+  }
+
+  async function updateAdminTicketStatus(ticketId, nextStatus) {
+    if (!ticketId || !nextStatus) return;
+    showAdminStatus(`Updating ticket #${ticketId}...`, "info");
+    try {
+      const res = await fetch(`/api/admin/support_tickets/${ticketId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Could not update ticket.");
+      if (window.skillSwap?.showToast) window.skillSwap.showToast(data.message || "Ticket updated", "success");
+      showAdminStatus(data.message || "Ticket updated.", "success");
+      await loadAdminTickets();
+    } catch (err) {
+      console.error(err);
+      if (window.skillSwap?.showToast) window.skillSwap.showToast(err.message || "Could not update ticket", "error");
+      showAdminStatus(err.message || "Could not update ticket.", "error");
+    }
+  }
+
+  adminSupportFilters.addEventListener("submit", (event) => {
+    event.preventDefault();
+    loadAdminTickets();
+  });
+
+  reloadAdminTicketsBtn.addEventListener("click", loadAdminTickets);
+
+  adminTicketsContainer.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-admin-ticket-id][data-admin-status]");
+    if (!btn) return;
+    const ticketId = Number(btn.dataset.adminTicketId);
+    const nextStatus = btn.dataset.adminStatus;
+    if (!ticketId || !nextStatus) return;
+    updateAdminTicketStatus(ticketId, nextStatus);
+  });
+
+  window.addEventListener("load", () => {
+    if (window.skillSwap?.setupAutocompletes) {
+      window.skillSwap.setupAutocompletes(adminSupportFilters);
+    }
+    loadAdminTickets();
+  });
+</script>
+{% endblock %}
